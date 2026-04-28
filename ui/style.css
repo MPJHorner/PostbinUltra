@@ -512,6 +512,25 @@ button { font-family: inherit; }
   color: var(--warning);
 }
 
+.json-tree-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.json-tree-toolbar {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.json-tree-toolbar .btn-xs {
+  padding: 3px 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.json-tree-toolbar .btn-xs:hover {
+  color: var(--text);
+}
+
 .json-tree {
   font-family: var(--font-mono);
   font-size: 12.5px;

@@ -690,12 +690,55 @@
     return wrap;
   }
 
-  // JSON tree with collapsible nodes & syntax highlighting
+  // JSON tree with collapsible nodes & syntax highlighting.
+  // Returns a wrapper containing a toolbar (expand/collapse all) plus the tree.
   function jsonTree(value) {
-    const root = document.createElement('pre');
-    root.className = 'json-tree';
-    root.appendChild(renderJsonNode(value, 0));
-    return root;
+    const wrap = document.createElement('div');
+    wrap.className = 'json-tree-wrap';
+
+    const tree = document.createElement('pre');
+    tree.className = 'json-tree';
+    tree.appendChild(renderJsonNode(value, 0));
+
+    // Only show controls when there are toggleable nodes (i.e. non-empty
+    // objects/arrays). For a primitive root they'd be inert.
+    const hasToggles = tree.querySelector('.json-toggle') !== null;
+    if (hasToggles) {
+      wrap.appendChild(jsonTreeToolbar(tree));
+    }
+    wrap.appendChild(tree);
+    return wrap;
+  }
+
+  function jsonTreeToolbar(tree) {
+    const bar = document.createElement('div');
+    bar.className = 'json-tree-toolbar';
+
+    const collapseAll = document.createElement('button');
+    collapseAll.type = 'button';
+    collapseAll.className = 'btn btn-ghost btn-xs';
+    collapseAll.textContent = 'Collapse all';
+
+    const expandAll = document.createElement('button');
+    expandAll.type = 'button';
+    expandAll.className = 'btn btn-ghost btn-xs';
+    expandAll.textContent = 'Expand all';
+
+    collapseAll.addEventListener('click', () => setAllJsonCollapsed(tree, true));
+    expandAll.addEventListener('click', () => setAllJsonCollapsed(tree, false));
+
+    bar.appendChild(collapseAll);
+    bar.appendChild(expandAll);
+    return bar;
+  }
+
+  function setAllJsonCollapsed(tree, collapsed) {
+    tree.querySelectorAll('.json-toggle').forEach((toggle) => {
+      const target = toggle.parentElement;
+      if (!target) return;
+      target.classList.toggle('json-collapsed', collapsed);
+      toggle.textContent = collapsed ? '▸' : '▾';
+    });
   }
 
   function renderJsonNode(value, depth) {
