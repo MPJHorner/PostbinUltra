@@ -3,13 +3,20 @@
 
 .DEFAULT_GOAL := help
 
-CARGO ?= cargo
+# Resolve cargo from PATH, then fall back to the standard rustup install
+# location so `make run` works in shells that haven't sourced ~/.cargo/env.
+CARGO ?= $(shell command -v cargo 2>/dev/null || echo $(HOME)/.cargo/bin/cargo)
 BIN   ?= postbin-ultra
 
-# Override on the CLI: `make run PORT=7777 UI_PORT=7778`
-PORT     ?= 9000
-UI_PORT  ?= 9001
+# Override on the CLI: `make run PORT=7777 UI_PORT=7778`.
+# Leave PORT / UI_PORT unset to use the binary's defaults (9000 / 9001 with
+# auto-fallback to the next free port).
+PORT     ?=
+UI_PORT  ?=
 RUN_ARGS ?=
+
+PORT_FLAG    := $(if $(PORT),-p $(PORT),)
+UI_PORT_FLAG := $(if $(UI_PORT),-u $(UI_PORT),)
 
 .PHONY: help
 help: ## Show this help
@@ -17,11 +24,11 @@ help: ## Show this help
 
 .PHONY: run
 run: ## Run in dev mode (cargo run, no release optimisations)
-	$(CARGO) run -- -p $(PORT) -u $(UI_PORT) $(RUN_ARGS)
+	$(CARGO) run -- $(PORT_FLAG) $(UI_PORT_FLAG) $(RUN_ARGS)
 
 .PHONY: run-release
 run-release: release ## Run the release binary (faster startup)
-	./target/release/$(BIN) -p $(PORT) -u $(UI_PORT) $(RUN_ARGS)
+	./target/release/$(BIN) $(PORT_FLAG) $(UI_PORT_FLAG) $(RUN_ARGS)
 
 .PHONY: build
 build: ## Debug build
@@ -74,13 +81,16 @@ clean: ## Remove build artifacts
 	$(CARGO) clean
 	rm -f lcov.info
 
+SMOKE_PORT    := $(or $(PORT),9000)
+SMOKE_UI_PORT := $(or $(UI_PORT),9001)
+
 .PHONY: smoke
 smoke: release ## Quick end-to-end smoke test against a fresh release binary
-	@./target/release/$(BIN) -p $(PORT) -u $(UI_PORT) --no-cli > /tmp/pbu-smoke.log 2>&1 & echo $$! > /tmp/pbu-smoke.pid
+	@./target/release/$(BIN) -p $(SMOKE_PORT) -u $(SMOKE_UI_PORT) --no-cli > /tmp/pbu-smoke.log 2>&1 & echo $$! > /tmp/pbu-smoke.pid
 	@sleep 1
 	@echo "→ POST  /smoke"
-	@curl -sS -X POST http://127.0.0.1:$(PORT)/smoke -H 'content-type: application/json' -d '{"ok":true}' && echo
+	@curl -sS -X POST http://127.0.0.1:$(SMOKE_PORT)/smoke -H 'content-type: application/json' -d '{"ok":true}' && echo
 	@echo "→ /api/requests"
-	@curl -sS http://127.0.0.1:$(UI_PORT)/api/requests | head -c 200; echo
+	@curl -sS http://127.0.0.1:$(SMOKE_UI_PORT)/api/requests | head -c 200; echo
 	@kill $$(cat /tmp/pbu-smoke.pid); rm -f /tmp/pbu-smoke.pid /tmp/pbu-smoke.log
 	@echo "smoke OK"

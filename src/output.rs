@@ -126,6 +126,28 @@ impl Printer {
         }
     }
 
+    /// Notify that a requested port was busy and the server fell back to
+    /// `actual`. Suppressed in quiet/json modes for the same reason as the
+    /// banner — keeps NDJSON output strictly machine-readable.
+    pub fn print_port_fallback(&self, label: &str, requested: u16, actual: u16) {
+        if self.opts.json_mode || self.opts.quiet {
+            return;
+        }
+        if self.opts.use_color {
+            self.write_line(&format!(
+                "  {}  {label} port {requested} in use — using {actual}",
+                "!".bright_yellow(),
+                label = label.bright_white(),
+                requested = requested.to_string().bright_white(),
+                actual = actual.to_string().bright_green(),
+            ));
+        } else {
+            self.write_line(&format!(
+                "  ! {label} port {requested} in use — using {actual}"
+            ));
+        }
+    }
+
     pub fn print_banner(
         &self,
         capture_url: &str,
@@ -423,6 +445,37 @@ mod tests {
         assert!(out.contains("http://127.0.0.1:9001"));
         assert!(out.contains("1000"));
         assert!(out.contains("10 MiB"));
+    }
+
+    #[test]
+    fn port_fallback_notice_includes_both_ports() {
+        let opts = PrinterOptions {
+            use_color: false,
+            json_mode: false,
+            verbose: false,
+            quiet: false,
+        };
+        let buf: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+        let p = Printer::with_sink(opts, BufWriter(buf.clone()));
+        p.print_port_fallback("capture", 9000, 9002);
+        let out = String::from_utf8(buf.lock().unwrap().clone()).unwrap();
+        assert!(out.contains("capture"));
+        assert!(out.contains("9000"));
+        assert!(out.contains("9002"));
+    }
+
+    #[test]
+    fn port_fallback_notice_quiet_writes_nothing() {
+        let opts = PrinterOptions {
+            use_color: false,
+            json_mode: false,
+            verbose: false,
+            quiet: true,
+        };
+        let buf: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+        let p = Printer::with_sink(opts, BufWriter(buf.clone()));
+        p.print_port_fallback("capture", 9000, 9002);
+        assert!(buf.lock().unwrap().is_empty());
     }
 
     #[test]

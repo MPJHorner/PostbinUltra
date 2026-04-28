@@ -23,7 +23,11 @@ use crate::{
     store::{RequestStore, StoreEvent},
 };
 
-pub fn router(store: Arc<RequestStore>) -> Router {
+/// Build the UI router. `capture_port` is included in `/api/health` so the
+/// browser app can render the correct capture URL even when port-fallback
+/// shifted us off the default; `None` keeps the field absent (for tests or
+/// `--no-ui` callers that don't have a capture port handy).
+pub fn router(store: Arc<RequestStore>, capture_port: Option<u16>) -> Router {
     Router::new()
         .route("/", get(serve_index))
         .route("/api/health", get(health))
@@ -33,7 +37,22 @@ pub fn router(store: Arc<RequestStore>) -> Router {
         .route("/api/stream", get(stream))
         .fallback(serve_asset)
         .layer(CorsLayer::permissive())
-        .with_state(store)
+        .with_state(UiState {
+            store,
+            capture_port,
+        })
+}
+
+#[derive(Clone)]
+struct UiState {
+    store: Arc<RequestStore>,
+    capture_port: Option<u16>,
+}
+
+impl axum::extract::FromRef<UiState> for Arc<RequestStore> {
+    fn from_ref(s: &UiState) -> Self {
+        s.store.clone()
+    }
 }
 
 async fn serve_index() -> Response {
@@ -65,11 +84,15 @@ async fn serve_asset_path(path: &str) -> Response {
     }
 }
 
-async fn health() -> Json<serde_json::Value> {
-    Json(serde_json::json!({
+async fn health(State(state): State<UiState>) -> Json<serde_json::Value> {
+    let mut body = serde_json::json!({
         "status": "ok",
         "version": env!("CARGO_PKG_VERSION"),
-    }))
+    });
+    if let Some(port) = state.capture_port {
+        body["capture_port"] = serde_json::Value::from(port);
+    }
+    Json(body)
 }
 
 #[derive(Deserialize)]

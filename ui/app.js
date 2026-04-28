@@ -78,13 +78,20 @@
     }
   }
 
-  /* The UI is hosted on the UI port; the capture port is different. We have no
-     direct API to learn it, so try common patterns: UI port - 1, then UI port + 1.
-     If the user picked unusual ports, they can override with ?capture=<port>. */
+  /* The UI is hosted on the UI port; the capture port is different. The server
+     reports it on /api/health (so port-fallback still gives the right URL).
+     If that's missing we probe ui_port ± 1; ?capture=<port> overrides both. */
   async function guessCapturePort() {
     const params = new URLSearchParams(window.location.search);
     const override = params.get('capture');
     if (override) return override;
+    try {
+      const res = await fetch('/api/health');
+      if (res.ok) {
+        const j = await res.json();
+        if (j && Number.isInteger(j.capture_port)) return j.capture_port;
+      }
+    } catch {}
     const uiPort = Number(window.location.port || 80);
     const candidates = [uiPort - 1, uiPort + 1];
     for (const p of candidates) {

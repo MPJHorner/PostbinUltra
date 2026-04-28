@@ -52,9 +52,16 @@ fn open_stream(url: &str) -> SseStream {
 }
 
 async fn spawn(store: Arc<RequestStore>) -> SocketAddr {
+    spawn_with_capture_port(store, None).await
+}
+
+async fn spawn_with_capture_port(
+    store: Arc<RequestStore>,
+    capture_port: Option<u16>,
+) -> SocketAddr {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-    let app = ui::router(store);
+    let app = ui::router(store, capture_port);
     tokio::spawn(async move { axum::serve(listener, app).await });
     addr
 }
@@ -96,6 +103,22 @@ async fn health_endpoint_reports_ok() {
         .unwrap();
     assert_eq!(v["status"], "ok");
     assert!(v["version"].is_string());
+    assert!(v.get("capture_port").is_none());
+}
+
+#[tokio::test]
+async fn health_endpoint_reports_capture_port_when_provided() {
+    let store = RequestStore::new(10);
+    let addr = spawn_with_capture_port(store, Some(54321)).await;
+    let v: serde_json::Value = client()
+        .get(format!("http://{addr}/api/health"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(v["capture_port"], 54321);
 }
 
 #[tokio::test]

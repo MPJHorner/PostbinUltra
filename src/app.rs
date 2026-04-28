@@ -1,3 +1,4 @@
+use std::io;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
@@ -5,6 +6,38 @@ use anyhow::{Context, Result};
 use tokio::net::TcpListener;
 use tokio::signal;
 use tokio::task::JoinHandle;
+
+/// Maximum number of consecutive ports tried after the requested one when the
+/// requested port is already in use.
+const MAX_PORT_FALLBACK_ATTEMPTS: u16 = 50;
+
+/// Bind a TCP listener on `port`, falling back to the next free port up to
+/// [`MAX_PORT_FALLBACK_ATTEMPTS`] times if the requested port is busy.
+///
+/// `port == 0` is passed through unchanged so callers keep the OS-assigned
+/// ephemeral behavior. Returns the listener and the port that was actually
+/// bound (which equals `port` when no fallback occurred).
+async fn bind_with_fallback(bind: IpAddr, port: u16) -> io::Result<TcpListener> {
+    if port == 0 {
+        return TcpListener::bind(SocketAddr::new(bind, 0)).await;
+    }
+    let mut last_err = None;
+    for offset in 0..=MAX_PORT_FALLBACK_ATTEMPTS {
+        let candidate = match port.checked_add(offset) {
+            Some(p) => p,
+            None => break,
+        };
+        match TcpListener::bind(SocketAddr::new(bind, candidate)).await {
+            Ok(l) => return Ok(l),
+            Err(e) if e.kind() == io::ErrorKind::AddrInUse => {
+                last_err = Some(e);
+                continue;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    Err(last_err.unwrap_or_else(|| io::Error::other("no free port found in fallback range")))
+}
 
 use crate::{
     capture::{self, CaptureConfig},
@@ -44,10 +77,13 @@ pub async fn start(cli: &Cli, printer: Printer) -> Result<Running> {
     let store = RequestStore::new(cli.buffer_size);
     let bind: IpAddr = cli.bind.parse().context("parsing --bind address")?;
 
-    let capture_listener = TcpListener::bind(SocketAddr::new(bind, cli.port))
+    let capture_listener = bind_with_fallback(bind, cli.port)
         .await
         .with_context(|| format!("binding capture server on {}:{}", cli.bind, cli.port))?;
     let capture_addr = capture_listener.local_addr()?;
+    if cli.port != 0 && capture_addr.port() != cli.port {
+        printer.print_port_fallback("capture", cli.port, capture_addr.port());
+    }
     let capture_router = capture::router(
         store.clone(),
         CaptureConfig {
@@ -65,11 +101,14 @@ pub async fn start(cli: &Cli, printer: Printer) -> Result<Running> {
     let (ui_addr, ui_task) = if cli.no_ui {
         (None, None)
     } else {
-        let listener = TcpListener::bind(SocketAddr::new(bind, cli.ui_port))
+        let listener = bind_with_fallback(bind, cli.ui_port)
             .await
             .with_context(|| format!("binding UI server on {}:{}", cli.bind, cli.ui_port))?;
         let addr = listener.local_addr()?;
-        let router = ui::router(store.clone());
+        if cli.ui_port != 0 && addr.port() != cli.ui_port {
+            printer.print_port_fallback("UI", cli.ui_port, addr.port());
+        }
+        let router = ui::router(store.clone(), Some(capture_addr.port()));
         let task = tokio::spawn(async move { axum::serve(listener, router).await });
         (Some(addr), Some(task))
     };
@@ -194,6 +233,31 @@ mod tests {
             verbose: false,
             quiet: true,
         })
+    }
+
+    #[tokio::test]
+    async fn bind_with_fallback_returns_same_port_when_free() {
+        let l = bind_with_fallback("127.0.0.1".parse().unwrap(), 0)
+            .await
+            .unwrap();
+        // Port 0 path: OS picks a port and returns it.
+        assert!(l.local_addr().unwrap().port() != 0);
+    }
+
+    #[tokio::test]
+    async fn bind_with_fallback_walks_past_busy_ports() {
+        // Hold a specific port, then ask the helper to bind to it. It should
+        // pick the next free port instead of failing.
+        let blocker = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let busy = blocker.local_addr().unwrap().port();
+        let l = bind_with_fallback("127.0.0.1".parse().unwrap(), busy)
+            .await
+            .unwrap();
+        let chosen = l.local_addr().unwrap().port();
+        assert_ne!(chosen, busy);
+        assert!(chosen > busy);
+        drop(blocker);
+        drop(l);
     }
 
     #[tokio::test]

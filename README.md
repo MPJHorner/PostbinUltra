@@ -78,6 +78,8 @@ cargo build --release
 postbin-ultra
 ```
 
+No flags needed. By default the capture server binds **`127.0.0.1:9000`** and the web UI binds **`127.0.0.1:9001`**. If either port is busy, PostbinUltra automatically picks the next free port (up to 50 above the requested one) and prints the URL it actually bound:
+
 ```
   ▶ PostbinUltra v0.1.0
     Capture  http://127.0.0.1:9000   (any method, any path)
@@ -86,6 +88,14 @@ postbin-ultra
 
   Waiting for requests… (Ctrl+C to quit)
 ```
+
+If `9000` was already in use you'd see something like:
+
+```
+  ! capture port 9000 in use — using 9002
+```
+
+…and the banner that follows would show the chosen URL. Use `-p` / `-u` to pin specific ports.
 
 Send anything to the capture URL:
 
@@ -210,8 +220,8 @@ UTF-8 bodies are returned as a string (`body_encoding: "utf8"`); binary bodies a
 
 | Flag | Env equivalent | Default | Notes |
 | --- | --- | --- | --- |
-| `--port` | — | 9000 | Capture port. Pass `0` for an OS-assigned ephemeral port. |
-| `--ui-port` | — | 9001 | Web UI port. |
+| `--port` | — | 9000 | Capture port. If busy, PostbinUltra walks up to the next free port (up to +50). Pass `0` for an OS-assigned ephemeral port. |
+| `--ui-port` | — | 9001 | Web UI port. Same auto-fallback behavior as `--port`. |
 | `--bind` | — | 127.0.0.1 | Set to `0.0.0.0` to accept connections from other machines. |
 | `--max-body-size` | — | 10 MiB | Bodies above this are truncated to this size. The captured request still records the original byte count and is marked `body_truncated`. |
 | `--buffer-size` | — | 1000 | Number of recent requests held in memory. Older requests are dropped. |
