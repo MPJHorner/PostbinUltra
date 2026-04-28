@@ -654,6 +654,9 @@ button { font-family: inherit; }
   border-color: var(--border-strong);
 }
 
+/* Shortcuts icon is the mobile fallback for the kbd glyph; hidden on desktop. */
+.shortcuts-icon { display: none; }
+
 .help-note {
   margin: 0;
   font-size: 11.5px;
@@ -884,17 +887,297 @@ button { font-family: inherit; }
   border-radius: 3px;
 }
 
+/* Mobile back button — hidden on desktop, surfaced inside the detail header on phones. */
+.mobile-back-btn { display: none; }
+
+/* ───── tablet (≤900px): keep horizontal-ish desktop layout, allow header to wrap ───── */
 @media (max-width: 900px) {
   .topbar {
     grid-template-columns: auto 1fr auto;
-    grid-template-areas: "brand actions status" "url url url" "search search search";
+    grid-template-areas:
+      "brand actions status"
+      "url url url"
+      "search search search";
     gap: 8px;
   }
   .brand { grid-area: brand; }
   .capture-pill { grid-area: url; max-width: none; }
   .search-wrap { grid-area: search; }
-  .actions { grid-area: actions; }
+  .actions { grid-area: actions; flex-wrap: wrap; justify-content: flex-end; }
   .status-dot { grid-area: status; }
-  .layout { grid-template-columns: 1fr; grid-template-rows: 200px 1fr; }
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(220px, 38vh) 1fr;
+  }
   .list-pane { border-right: none; border-bottom: 1px solid var(--border); }
+}
+
+/* ───── phone (≤640px): full master/detail with push navigation ───── */
+@media (max-width: 640px) {
+  html, body {
+    font-size: 14px;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+
+  body { overflow: hidden; }
+
+  /* Topbar: dense header with brand+counter+icon row, then capture URL row, then search row. */
+  .topbar {
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "brand actions status"
+      "url url url"
+      "search search search";
+    gap: 8px;
+    padding: max(8px, env(safe-area-inset-top, 0px)) 10px 8px;
+  }
+  .brand { gap: 6px; }
+  .brand-version { display: none; }
+  .brand-name { font-size: 13px; }
+
+  .capture-pill {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+  .capture-pill .capture-label { display: none; }
+  .capture-pill code { font-size: 12px; }
+  .capture-pill .icon-btn { padding: 6px; }
+
+  .search-wrap { width: 100%; }
+  /* 16px input prevents iOS Safari's auto-zoom-on-focus. */
+  #search {
+    width: 100%;
+    padding: 10px 12px 10px 32px;
+    font-size: 16px;
+    min-height: 40px;
+  }
+  .search-wrap kbd { display: none; }
+
+  .actions { gap: 6px; flex-wrap: nowrap; justify-content: flex-end; }
+  .actions .btn,
+  .actions .icon-btn {
+    padding: 8px;
+    min-width: 36px;
+    min-height: 36px;
+    justify-content: center;
+  }
+  .actions .btn-label { display: none; }
+  .shortcuts-btn .shortcuts-key { display: none; }
+  .shortcuts-btn .shortcuts-icon { display: inline-block; }
+  .shortcuts-btn { padding: 8px; }
+
+  /* Forward pill collapses to icon-only on phones; tap to open dialog. */
+  .forward-pill {
+    padding: 8px 8px;
+    max-width: none;
+    gap: 4px;
+    min-height: 36px;
+  }
+  .forward-pill .forward-label { display: none; }
+  .forward-pill code {
+    max-width: 0;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+    border: none;
+  }
+  .forward-pill.forward-on code {
+    max-width: 60px;
+    font-size: 11px;
+  }
+
+  .counter { display: none; }
+
+  /* Master/detail: list takes full screen by default; detail slides in from right. */
+  .layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    position: relative;
+  }
+  .list-pane {
+    border-right: none;
+    border-bottom: none;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .detail-pane {
+    position: absolute;
+    inset: 0;
+    background: var(--bg);
+    transform: translateX(100%);
+    transition: transform 240ms cubic-bezier(.2, .9, .2, 1);
+    will-change: transform;
+    pointer-events: none;
+    z-index: 5;
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.25);
+  }
+  body.mobile-detail-open .detail-pane {
+    transform: translateX(0);
+    pointer-events: auto;
+  }
+  /* When detail is open, hide the empty placeholder so we don't see it during slide-in. */
+  body.mobile-detail-open .detail-empty { display: none; }
+
+  /* Free up vertical space in the detail view by collapsing the URL pill + search rows. */
+  body.mobile-detail-open .capture-pill,
+  body.mobile-detail-open .search-wrap { display: none; }
+  body.mobile-detail-open .topbar {
+    grid-template-areas: "brand actions status";
+    padding-bottom: 8px;
+  }
+
+  /* Bigger taps on rows. */
+  .request-row {
+    grid-template-columns: auto 1fr auto;
+    padding: 14px 14px;
+    gap: 10px;
+  }
+  .request-row.selected {
+    border-left: 3px solid var(--accent);
+    padding-left: 11px;
+  }
+  .row-path { font-size: 13px; }
+  .row-meta { font-size: 11px; }
+  .method-badge { min-width: 52px; padding: 4px 6px; }
+
+  /* Mobile back button shown only when detail is open */
+  body.mobile-detail-open .mobile-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    padding: 4px 8px 4px 0;
+    margin-right: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    min-height: 32px;
+  }
+  body.mobile-detail-open .mobile-back-btn:active { opacity: 0.6; }
+
+  .detail-header {
+    padding: 10px 12px;
+    gap: 8px;
+    row-gap: 6px;
+  }
+  .detail-header .d-path {
+    font-size: 13px;
+    flex: 1 1 100%;
+    order: 4;
+    word-break: break-all;
+  }
+  .detail-header .timestamp,
+  .detail-header .from {
+    font-size: 11px;
+  }
+  .detail-header .from { display: none; }
+
+  /* Tabs scroll horizontally — keep them all reachable by swipe. */
+  .tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding: 0 4px;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    padding: 12px 12px;
+    font-size: 13px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-height: 40px;
+  }
+
+  .pane { padding: 12px; }
+
+  /* KV table: narrower key column, smaller font. */
+  .kv-table th {
+    width: 96px;
+    font-size: 11px;
+    padding: 8px 8px 8px 0;
+  }
+  .kv-table td {
+    font-size: 12px;
+    padding: 8px 0 8px 8px;
+  }
+
+  .json-tree {
+    font-size: 11.5px;
+    padding: 8px 10px;
+    line-height: 1.5;
+  }
+  .hex-view {
+    font-size: 10.5px;
+    padding: 8px 10px;
+  }
+  .text-block {
+    font-size: 12px;
+    padding: 8px 10px;
+    max-height: 60vh;
+  }
+  .body-banner { gap: 6px; font-size: 11px; }
+
+  .replay-form input[type="url"],
+  .replay-form select {
+    font-size: 16px;
+    padding: 10px 12px;
+    min-height: 44px;
+  }
+  .replay-form .btn { min-height: 44px; padding: 10px 14px; justify-content: center; }
+
+  /* Empty state: tighter spacing, full-bleed snippet. */
+  .empty-state { padding: 24px 16px; }
+  .empty-state h2 { font-size: 14px; }
+  .curl-snippet { font-size: 11px; max-width: none; }
+
+  /* Dialogs: near-full-width, safe-area aware. */
+  .help-dialog,
+  .forward-dialog {
+    width: calc(100vw - 16px);
+    max-width: none;
+    margin: auto;
+    padding: 18px 16px max(18px, env(safe-area-inset-bottom, 0px));
+    border-radius: 12px;
+  }
+  .help-dialog table { font-size: 12px; }
+  .help-dialog td { padding: 6px 10px 6px 0; }
+  .help-dialog td:first-child { width: 90px; }
+  .help-note { font-size: 11px; }
+
+  .forward-dialog input[type="url"],
+  .forward-dialog input[type="number"] {
+    font-size: 16px;
+    padding: 10px 12px;
+    min-height: 44px;
+  }
+  .forward-dialog .forward-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .forward-dialog .forward-actions .btn {
+    justify-content: center;
+    min-height: 44px;
+  }
+
+  /* Toast above the safe-area inset so it isn't hidden by the home indicator. */
+  .toast {
+    bottom: max(20px, env(safe-area-inset-bottom, 0px));
+    font-size: 13px;
+    padding: 10px 16px;
+  }
+
+  /* Bigger copy-row buttons for thumb taps. */
+  .copy-row .btn { padding: 9px 12px; min-height: 38px; }
+}
+
+/* Very narrow phones (≤360px): squeeze a touch more. */
+@media (max-width: 360px) {
+  .brand-name { display: none; }
+  .topbar { padding-left: 8px; padding-right: 8px; }
+  .pane { padding: 10px; }
+  .kv-table th { width: 84px; }
 }

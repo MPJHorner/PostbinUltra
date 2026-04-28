@@ -2,7 +2,12 @@
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#0b0d12" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <title>PostbinUltra</title>
 <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%237c8cff'/><path d='M11 9 L21 16 L11 23 Z' fill='white'/></svg>" />
 <link rel="stylesheet" href="style.css" />
@@ -48,6 +53,7 @@
       </button>
       <button class="btn btn-ghost shortcuts-btn" id="shortcuts-btn" title="Keyboard shortcuts (?)" aria-label="Show keyboard shortcuts">
         <kbd class="shortcuts-key">⌘</kbd>
+        <svg class="shortcuts-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M2 3h12v2H2V3Zm0 4h12v2H2V7Zm0 4h8v2H2v-2Z"/></svg>
         <span class="btn-label">Shortcuts</span>
       </button>
       <button class="btn btn-danger" id="clear-btn" title="Clear all (Shift + X)">
@@ -85,6 +91,10 @@
       </div>
       <article class="detail" id="detail" hidden>
         <header class="detail-header">
+          <button class="mobile-back-btn" id="mobile-back" type="button" aria-label="Back to request list">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M10.7 13.3 5.4 8l5.3-5.3 1.4 1.4L8.2 8l3.9 3.9z"/></svg>
+            <span>Back</span>
+          </button>
           <span class="method-badge" id="d-method">GET</span>
           <code class="d-path" id="d-path"></code>
           <span class="status-pill" id="d-status">Captured</span>

@@ -14,6 +14,10 @@ A two-pane layout: scrollable request list on the left, full detail on the right
 
 The list streams new requests as they arrive over Server-Sent Events. The list flashes briefly when a new request lands, so a busy stream stays readable.
 
+## Mobile
+
+On phones the UI switches to a master/detail layout: the list takes the full screen, tap a request and its detail slides in from the right. Tap **Back** in the detail header (or press <kbd>Esc</kbd>) to return to the list. Tabs and dialogs adapt to small screens, form inputs use 16px text so iOS Safari does not auto-zoom on focus, and safe-area insets are respected on notched devices.
+
 ## Tabs
 
 The detail pane has five tabs:

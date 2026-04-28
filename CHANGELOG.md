@@ -2,6 +2,15 @@
 
 All notable changes are recorded here. Postbin Ultra follows [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] - 2026-04-28
+
+### Added
+- A first-class mobile experience. The web UI now uses a master/detail layout on phones: tap a captured request to slide its detail in, tap Back (or `Esc`) to return to the list. Tabs scroll horizontally, dialogs go near-full-width, and form inputs use 16px text so iOS Safari does not auto-zoom on focus.
+- Safe-area inset handling for iPhone notches and home indicators, plus a `theme-color` meta so the system status bar matches the active theme.
+
+### Changed
+- The desktop layout is unchanged. All mobile work is gated behind viewport breakpoints; existing keyboard shortcuts, the two-pane desktop layout, and every API surface remain identical.
+
 ## [0.6.1] - 2026-04-28
 
 ### Changed

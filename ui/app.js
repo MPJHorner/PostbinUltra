@@ -61,7 +61,32 @@
       saveForward();
     });
 
+    $('#mobile-back')?.addEventListener('click', closeMobileDetail);
+
+    // If the viewport widens past the phone breakpoint, ensure the detail-pane
+    // doesn't stay covering the list (it should only ever cover on phone).
+    if (window.matchMedia) {
+      const mq = window.matchMedia('(max-width: 640px)');
+      const onChange = () => {
+        if (!mq.matches) document.body.classList.remove('mobile-detail-open');
+      };
+      if (mq.addEventListener) mq.addEventListener('change', onChange);
+      else if (mq.addListener) mq.addListener(onChange);
+    }
+
     document.addEventListener('keydown', onKeydown);
+  }
+
+  function isPhoneViewport() {
+    return window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+  }
+
+  function openMobileDetail() {
+    if (isPhoneViewport()) document.body.classList.add('mobile-detail-open');
+  }
+
+  function closeMobileDetail() {
+    document.body.classList.remove('mobile-detail-open');
   }
 
   // ───────── forward (proxy) ─────────
@@ -320,7 +345,7 @@
       meta.appendChild(size);
       li.appendChild(meta);
 
-      li.addEventListener('click', () => selectRequest(r.id));
+      li.addEventListener('click', () => selectRequest(r.id, { fromUser: true }));
       ol.appendChild(li);
     }
   }
@@ -370,10 +395,11 @@
     showTab(state.activeTab);
   }
 
-  function selectRequest(id) {
+  function selectRequest(id, opts = {}) {
     state.selectedId = id;
     renderList();
     renderDetail();
+    if (opts.fromUser) openMobileDetail();
   }
 
   // ───────── tab content ─────────
@@ -744,6 +770,7 @@
       }
       case 'Escape':
         if ($('#help-dialog').open) $('#help-dialog').close();
+        else if (document.body.classList.contains('mobile-detail-open')) closeMobileDetail();
         break;
     }
   }
