@@ -270,3 +270,43 @@ async fn stream(
             .text("keep-alive"),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn serve_asset_falls_back_to_index_for_empty_path() {
+        let resp = serve_asset(axum::http::Uri::from_static("/")).await;
+        assert_eq!(resp.status(), 200);
+    }
+
+    #[test]
+    fn forward_to_json_renders_enabled_and_disabled() {
+        let disabled = forward_to_json(&None);
+        assert_eq!(disabled["enabled"], false);
+        assert!(disabled["url"].is_null());
+        assert_eq!(disabled["timeout_secs"], 30);
+        assert_eq!(disabled["insecure"], false);
+
+        let cfg = ForwardConfig::build(
+            url::Url::parse("https://api.example.com/v2").unwrap(),
+            std::time::Duration::from_secs(7),
+            true,
+        )
+        .unwrap();
+        let enabled = forward_to_json(&Some(cfg));
+        assert_eq!(enabled["enabled"], true);
+        assert_eq!(enabled["url"], "https://api.example.com/v2");
+        assert_eq!(enabled["timeout_secs"], 7);
+        assert_eq!(enabled["insecure"], true);
+    }
+
+    #[test]
+    fn forward_error_carries_status_code_and_payload() {
+        let (status, body) = forward_error(StatusCode::BAD_REQUEST, "boom", "because");
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(body.0["error"], "boom");
+        assert_eq!(body.0["reason"], "because");
+    }
+}

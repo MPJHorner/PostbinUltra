@@ -381,4 +381,49 @@ mod tests {
         assert!(!trunc);
         assert_eq!(total, 0);
     }
+
+    #[test]
+    fn capture_config_default_is_disabled_proxy_and_10mib_cap() {
+        let cfg = CaptureConfig::default();
+        assert_eq!(cfg.max_body_size, 10 * 1024 * 1024);
+        // Read the switch under a runtime since it's an async lock.
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let snap = cfg.forward.read().await.clone();
+            assert!(snap.is_none());
+        });
+    }
+
+    #[test]
+    fn forward_config_build_succeeds_for_http_and_https() {
+        for raw in ["http://up", "https://up.example.com/v2"] {
+            let url = url::Url::parse(raw).unwrap();
+            let cfg = ForwardConfig::build(url.clone(), Duration::from_secs(5), false).expect(raw);
+            assert_eq!(cfg.base, url);
+            assert_eq!(cfg.timeout, Duration::from_secs(5));
+            assert!(!cfg.insecure);
+        }
+    }
+
+    #[test]
+    fn is_strip_header_matches_hop_by_hop_case_insensitively() {
+        for h in [
+            "connection",
+            "Keep-Alive",
+            "PROXY-AUTHENTICATE",
+            "proxy-authorization",
+            "te",
+            "trailer",
+            "trailers",
+            "Transfer-Encoding",
+            "Upgrade",
+            "host",
+            "Content-Length",
+        ] {
+            assert!(is_strip_header(h), "should strip {h}");
+        }
+        for h in ["x-custom", "authorization", "cookie", "set-cookie"] {
+            assert!(!is_strip_header(h), "should keep {h}");
+        }
+    }
 }

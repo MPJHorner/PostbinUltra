@@ -64,13 +64,21 @@ lint: fmt-check clippy ## fmt-check + clippy (what CI runs)
 .PHONY: check
 check: lint test ## Lint + test — full pre-commit gate
 
+# Files that are not testable from the lib are excluded from coverage so the
+# number reflects the testable surface, matching what Codecov ignores.
+COVERAGE_IGNORE := src/(main|assets|update)\.rs
+
 .PHONY: coverage
-coverage: ## Line coverage summary via cargo-llvm-cov
-	$(CARGO) llvm-cov --lib --tests --summary-only
+coverage: ## Line coverage summary via cargo-llvm-cov (matches CI exclusions)
+	$(CARGO) llvm-cov --lib --tests \
+		--ignore-filename-regex='$(COVERAGE_IGNORE)' \
+		--summary-only
 
 .PHONY: coverage-html
 coverage-html: ## HTML coverage report at target/llvm-cov/html/index.html
-	$(CARGO) llvm-cov --lib --tests --html
+	$(CARGO) llvm-cov --lib --tests \
+		--ignore-filename-regex='$(COVERAGE_IGNORE)' \
+		--html
 
 .PHONY: install
 install: ## Install the binary into ~/.cargo/bin

@@ -620,6 +620,167 @@ mod tests {
         assert!(line.contains("[truncated]"));
     }
 
+    #[test]
+    fn banner_with_forward_secure_and_insecure_both_paths() {
+        for (use_color, insecure) in [(true, false), (true, true), (false, false), (false, true)] {
+            let buf: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+            let p = Printer::with_sink(
+                PrinterOptions {
+                    use_color,
+                    json_mode: false,
+                    verbose: false,
+                    quiet: false,
+                },
+                BufWriter(buf.clone()),
+            );
+            p.print_banner_with_forward(
+                "http://127.0.0.1:9000",
+                Some("http://127.0.0.1:9001"),
+                100,
+                1024,
+                Some(("https://api.example.com/v2/", 7, insecure)),
+            );
+            let out = String::from_utf8(buf.lock().unwrap().clone()).unwrap();
+            assert!(out.contains("Forward"));
+            assert!(out.contains("https://api.example.com/v2/"));
+            assert!(out.contains("timeout 7s"));
+            if insecure {
+                assert!(out.contains("insecure"), "expected 'insecure' in {out}");
+            } else {
+                assert!(!out.contains("insecure"));
+            }
+        }
+    }
+
+    #[test]
+    fn banner_with_forward_quiet_and_json_modes_emit_nothing() {
+        for opts in [
+            PrinterOptions {
+                use_color: false,
+                json_mode: true,
+                verbose: false,
+                quiet: false,
+            },
+            PrinterOptions {
+                use_color: false,
+                json_mode: false,
+                verbose: false,
+                quiet: true,
+            },
+        ] {
+            let buf: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+            let p = Printer::with_sink(opts, BufWriter(buf.clone()));
+            p.print_banner_with_forward("http://x", None, 1, 1024, Some(("https://up", 30, false)));
+            assert!(buf.lock().unwrap().is_empty());
+        }
+    }
+
+    #[test]
+    fn print_port_fallback_color_path_emits_message() {
+        let buf: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+        let p = Printer::with_sink(
+            PrinterOptions {
+                use_color: true,
+                json_mode: false,
+                verbose: false,
+                quiet: false,
+            },
+            BufWriter(buf.clone()),
+        );
+        p.print_port_fallback("capture", 9000, 9002);
+        let out = String::from_utf8(buf.lock().unwrap().clone()).unwrap();
+        assert!(out.contains("9000"));
+        assert!(out.contains("9002"));
+    }
+
+    #[test]
+    fn print_update_available_color_and_plain_paths() {
+        for use_color in [true, false] {
+            let buf: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+            let p = Printer::with_sink(
+                PrinterOptions {
+                    use_color,
+                    json_mode: false,
+                    verbose: false,
+                    quiet: false,
+                },
+                BufWriter(buf.clone()),
+            );
+            p.print_update_available("0.6.1", "0.7.0");
+            let out = String::from_utf8(buf.lock().unwrap().clone()).unwrap();
+            assert!(out.contains("update available"));
+            assert!(out.contains("0.7.0"));
+        }
+    }
+
+    #[test]
+    fn print_update_available_quiet_and_json_emit_nothing() {
+        for opts in [
+            PrinterOptions {
+                use_color: false,
+                json_mode: true,
+                verbose: false,
+                quiet: false,
+            },
+            PrinterOptions {
+                use_color: false,
+                json_mode: false,
+                verbose: false,
+                quiet: true,
+            },
+        ] {
+            let buf: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+            let p = Printer::with_sink(opts, BufWriter(buf.clone()));
+            p.print_update_available("0.0.1", "0.0.2");
+            assert!(buf.lock().unwrap().is_empty());
+        }
+    }
+
+    #[test]
+    fn verbose_extras_swap_connector_when_body_present() {
+        // Body is non-empty so the *last header* connector should be ├─ (mid),
+        // and a final body line is appended with └─.
+        let opts = PrinterOptions {
+            use_color: false,
+            json_mode: false,
+            verbose: true,
+            quiet: false,
+        };
+        let buf: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+        let p = Printer::with_sink(opts, BufWriter(buf.clone()));
+        p.print_request(&req("POST", b"hello", vec![("h1", "v1"), ("h2", "v2")]));
+        let out = String::from_utf8(buf.lock().unwrap().clone()).unwrap();
+        let header_lines: Vec<&str> = out
+            .lines()
+            .filter(|l| l.contains("h1: v1") || l.contains("h2: v2"))
+            .collect();
+        assert_eq!(header_lines.len(), 2);
+        // Both header lines use the mid-connector since body follows.
+        assert!(header_lines[0].contains("├─"));
+        assert!(header_lines[1].contains("├─"));
+        // Body line uses the end-connector.
+        assert!(out.contains("└─ body: hello"));
+    }
+
+    #[test]
+    fn write_line_lock_recovers_from_poison() {
+        // If a panic in one writer poisoned the mutex, output silently moves
+        // on. Hard to reproduce naturally; instead, drive both code paths and
+        // assert no test panic.
+        let buf: Arc<Mutex<Vec<u8>>> = Arc::new(Mutex::new(Vec::new()));
+        let p = Printer::with_sink(
+            PrinterOptions {
+                use_color: false,
+                json_mode: false,
+                verbose: false,
+                quiet: false,
+            },
+            BufWriter(buf.clone()),
+        );
+        p.print_banner_with_forward("http://x", None, 1, 1024, None);
+        assert!(!buf.lock().unwrap().is_empty());
+    }
+
     /// Buffer wrapper that lets us share an `Arc<Mutex<Vec<u8>>>` between the
     /// test and the printer.
     struct BufWriter(Arc<Mutex<Vec<u8>>>);
