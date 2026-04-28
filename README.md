@@ -3,6 +3,8 @@
 A local HTTP request inspector for developers. Capture any method, any path, any payload on a port you choose, and inspect every request in real time from your terminal and a live web UI. Built in Rust, ships as a single binary, runs entirely on your machine.
 
 [![CI](https://github.com/MPJHorner/PostbinUltra/actions/workflows/ci.yml/badge.svg)](https://github.com/MPJHorner/PostbinUltra/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/github/actions/workflow/status/MPJHorner/PostbinUltra/ci.yml?branch=main&label=tests)](https://github.com/MPJHorner/PostbinUltra/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/MPJHorner/PostbinUltra/branch/main/graph/badge.svg)](https://codecov.io/gh/MPJHorner/PostbinUltra)
 [![Release](https://img.shields.io/github/v/release/MPJHorner/PostbinUltra?display_name=tag&sort=semver)](https://github.com/MPJHorner/PostbinUltra/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org)
