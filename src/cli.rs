@@ -49,6 +49,14 @@ pub struct Cli {
     /// Verbose CLI output: prints headers and a body preview for each request.
     #[arg(short, long)]
     pub verbose: bool,
+
+    /// Download the latest release from GitHub and replace this binary, then exit.
+    #[arg(long)]
+    pub update: bool,
+
+    /// Skip the startup check that asks GitHub if a newer release is available.
+    #[arg(long)]
+    pub no_update_check: bool,
 }
 
 impl Cli {

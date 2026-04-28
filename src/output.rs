@@ -148,6 +148,26 @@ impl Printer {
         }
     }
 
+    /// One-line notice that a newer release exists. Suppressed in quiet/json
+    /// modes so machine-readable output stays clean.
+    pub fn print_update_available(&self, current: &str, latest: &str) {
+        if self.opts.json_mode || self.opts.quiet {
+            return;
+        }
+        if self.opts.use_color {
+            self.write_line(&format!(
+                "  {}  update available: v{current} -> v{latest}  (run `postbin-ultra --update`)",
+                "↑".bright_green(),
+                current = current.bright_white(),
+                latest = latest.bright_green(),
+            ));
+        } else {
+            self.write_line(&format!(
+                "  ^ update available: v{current} -> v{latest}  (run `postbin-ultra --update`)"
+            ));
+        }
+    }
+
     pub fn print_banner(
         &self,
         capture_url: &str,

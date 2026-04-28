@@ -134,6 +134,8 @@ postbin-ultra [OPTIONS]
       --json                   Emit each request as JSON (NDJSON) to stdout
       --open                   Open the web UI in your browser on startup
   -v, --verbose                Print headers + body preview for each request
+      --update                 Download the latest release and replace this binary, then exit
+      --no-update-check        Skip the startup check for newer releases
   -h, --help
   -V, --version
 ```
@@ -155,7 +157,25 @@ postbin-ultra --verbose
 
 # Headless mode for scripting
 postbin-ultra --no-ui --json
+
+# Update to the latest release in place
+postbin-ultra --update
+
+# Run without contacting GitHub at startup
+postbin-ultra --no-update-check
 ```
+
+## Updates
+
+Postbin Ultra checks GitHub for a newer release on startup. The check runs in the background with a 3 second timeout, never blocks the banner, and stays silent on offline machines or any other failure. When a newer release exists you will see a one-line notice under the banner.
+
+To upgrade, run:
+
+```sh
+postbin-ultra --update
+```
+
+This downloads the matching archive from the [latest GitHub release](https://github.com/MPJHorner/PostbinUltra/releases/latest), verifies it, and replaces the running binary in place. Pass `--no-update-check` to disable the startup check entirely.
 
 ## Web UI
 

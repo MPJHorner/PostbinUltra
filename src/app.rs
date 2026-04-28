@@ -44,7 +44,7 @@ use crate::{
     cli::Cli,
     output::{Printer, PrinterOptions},
     store::{RequestStore, StoreEvent},
-    ui,
+    ui, update,
 };
 
 /// Live handles to the running servers; callers can either `join()` or `abort()`.
@@ -162,8 +162,28 @@ pub async fn start(cli: &Cli, printer: Printer) -> Result<Running> {
 /// either Ctrl+C or a server to crash.
 pub async fn run(cli: Cli) -> Result<()> {
     let printer = Printer::new(PrinterOptions::from_cli(cli.no_cli, cli.json, cli.verbose));
-    let running = start(&cli, printer).await?;
-    wait_for_shutdown(running).await
+    let running = start(&cli, printer.clone()).await?;
+    let update_check = if cli.no_update_check {
+        None
+    } else {
+        Some(spawn_update_check(printer))
+    };
+    let result = wait_for_shutdown(running).await;
+    if let Some(handle) = update_check {
+        handle.abort();
+    }
+    result
+}
+
+/// Spawn a background task that asks GitHub if a newer release exists. The
+/// task fails silently on every error path: an offline machine should never
+/// see an error here, only the quiet absence of a notice.
+fn spawn_update_check(printer: Printer) -> JoinHandle<()> {
+    tokio::spawn(async move {
+        if let Some(latest) = update::check_latest_version().await {
+            printer.print_update_available(update::current_version(), &latest);
+        }
+    })
 }
 
 async fn wait_for_shutdown(mut running: Running) -> Result<()> {

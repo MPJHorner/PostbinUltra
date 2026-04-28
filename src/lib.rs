@@ -11,3 +11,4 @@ pub mod output;
 pub mod request;
 pub mod store;
 pub mod ui;
+pub mod update;
