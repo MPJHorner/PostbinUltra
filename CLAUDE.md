@@ -47,9 +47,16 @@ Run `make coverage` for a summary, `make coverage-html` for a per-line report. N
 - `src/output.rs` — terminal printer + banner.
 - `ui/` — the embedded vanilla-JS web UI (no build step).
 - `tests/` — integration tests; the capture and UI tests share the same patterns and use `reqwest` + `eventsource-client`.
+- `site/` — the GitHub Pages docs site (handwritten static-site builder, deployed by `.github/workflows/site.yml`).
+
+## Documentation
+
+The README and the docs site at `site/` are part of every user-visible change. Before committing anything that alters CLI flags, the JSON API, the web UI, install/build steps, or error messages, **invoke the `docs` skill** (`.claude/skills/docs/SKILL.md`). It walks through which page to edit, the writing style, the SEO conventions, and the local rebuild check.
+
+The site rebuilds and redeploys automatically on every push to `main` and every `v*` tag, so doc drift becomes public immediately.
 
 ## Style
 
-- No em dashes, no AI-slop adjectives ("blazing-fast", "beautiful", etc.) in user-facing text.
-- README leads with the SEO-friendly description and screenshot.
+- No em dashes, no AI-slop adjectives ("blazing-fast", "beautiful", etc.) in user-facing text. The full banned list lives in the `docs` skill.
+- README leads with the SEO-friendly description and screenshot, then links to the docs site for everything else.
 - README badges always point at `releases/latest`, so they update automatically when a new tag ships.
