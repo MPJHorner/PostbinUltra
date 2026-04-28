@@ -7,6 +7,7 @@ pub mod app;
 pub mod assets;
 pub mod capture;
 pub mod cli;
+pub mod entrypoint;
 pub mod output;
 pub mod request;
 pub mod store;

@@ -1,7 +1,7 @@
 use clap::Parser;
 use postbin_ultra::{
-    app,
     cli::Cli,
+    entrypoint,
     update::{self, UpdateOutcome},
 };
 
@@ -25,7 +25,7 @@ fn main() -> std::process::ExitCode {
     };
 
     runtime.block_on(async {
-        match app::run(cli).await {
+        match entrypoint::run(cli).await {
             Ok(()) => std::process::ExitCode::SUCCESS,
             Err(e) => {
                 eprintln!("error: {e:#}");

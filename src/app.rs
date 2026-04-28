@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use tokio::net::TcpListener;
-use tokio::signal;
 use tokio::task::JoinHandle;
 
 /// Maximum number of consecutive ports tried after the requested one when the
@@ -44,9 +43,9 @@ use std::time::Duration;
 use crate::{
     capture::{self, new_forward_switch, CaptureConfig, ForwardConfig, ForwardSwitch},
     cli::Cli,
-    output::{Printer, PrinterOptions},
+    output::Printer,
     store::{RequestStore, StoreEvent},
-    ui, update,
+    ui,
 };
 
 /// Live handles to the running servers; callers can either `join()` or `abort()`.
@@ -186,7 +185,7 @@ pub async fn start(cli: &Cli, printer: Printer) -> Result<Running> {
 
     if cli.open {
         if let Some(url) = &ui_url {
-            let _ = open_browser(url);
+            let _ = crate::entrypoint::open_browser(url);
         }
     }
 
@@ -229,89 +228,10 @@ fn spawn_log_writer(
     })
 }
 
-/// Top-level entrypoint used by `main`. Starts the servers and waits for
-/// either Ctrl+C or a server to crash.
-pub async fn run(cli: Cli) -> Result<()> {
-    let printer = Printer::new(PrinterOptions::from_cli(cli.no_cli, cli.json, cli.verbose));
-    let running = start(&cli, printer.clone()).await?;
-    let update_check = if cli.no_update_check {
-        None
-    } else {
-        Some(spawn_update_check(printer))
-    };
-    let result = wait_for_shutdown(running).await;
-    if let Some(handle) = update_check {
-        handle.abort();
-    }
-    result
-}
-
-/// Spawn a background task that asks GitHub if a newer release exists. The
-/// task fails silently on every error path: an offline machine should never
-/// see an error here, only the quiet absence of a notice.
-fn spawn_update_check(printer: Printer) -> JoinHandle<()> {
-    tokio::spawn(async move {
-        if let Some(latest) = update::check_latest_version().await {
-            printer.print_update_available(update::current_version(), &latest);
-        }
-    })
-}
-
-async fn wait_for_shutdown(mut running: Running) -> Result<()> {
-    let ui_task = running.ui_task.take();
-    tokio::select! {
-        _ = signal::ctrl_c() => {}
-        res = &mut running.capture_task => {
-            if let Ok(Err(e)) = res {
-                eprintln!("capture server stopped: {e}");
-            }
-        }
-        _ = async {
-            match ui_task {
-                Some(t) => { let _ = t.await; }
-                None => std::future::pending::<()>().await,
-            }
-        } => {}
-    }
-    running.capture_task.abort();
-    if let Some(t) = running.printer_task {
-        t.abort();
-    }
-    if let Some(t) = running.log_task {
-        t.abort();
-    }
-    Ok(())
-}
-
-#[cfg(not(target_os = "windows"))]
-fn open_browser(url: &str) -> std::io::Result<()> {
-    #[cfg(target_os = "macos")]
-    let prog = "open";
-    #[cfg(target_os = "linux")]
-    let prog = "xdg-open";
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    let prog = "xdg-open";
-    std::process::Command::new(prog)
-        .arg(url)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .map(|_| ())
-}
-
-#[cfg(target_os = "windows")]
-fn open_browser(url: &str) -> std::io::Result<()> {
-    std::process::Command::new("cmd")
-        .args(["/C", "start", url])
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .map(|_| ())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::output::PrinterOptions;
     use clap::Parser;
 
     fn cli(args: &[&str]) -> Cli {
@@ -527,27 +447,5 @@ mod tests {
         drop(store);
         let _ = tokio::time::timeout(std::time::Duration::from_secs(2), handle).await;
         let _ = std::fs::remove_file(&path);
-    }
-
-    #[tokio::test]
-    async fn wait_for_shutdown_returns_when_capture_task_finishes() {
-        // Build a Running by hand so we can immediately abort the capture task,
-        // simulating the "server stopped" branch in `wait_for_shutdown`.
-        let c = cli(&["-p", "0", "-u", "0"]);
-        let running = start(&c, quiet_printer()).await.unwrap();
-        running.capture_task.abort();
-        let mock = Running {
-            store: running.store,
-            capture_addr: running.capture_addr,
-            ui_addr: running.ui_addr,
-            capture_task: tokio::spawn(async { Ok::<(), std::io::Error>(()) }),
-            ui_task: running.ui_task,
-            printer_task: running.printer_task,
-            log_task: running.log_task,
-        };
-        // Should return promptly because capture_task already completed.
-        let res =
-            tokio::time::timeout(std::time::Duration::from_secs(2), wait_for_shutdown(mock)).await;
-        assert!(res.is_ok(), "wait_for_shutdown didn't return in time");
     }
 }

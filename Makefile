@@ -66,7 +66,7 @@ check: lint test ## Lint + test — full pre-commit gate
 
 # Files that are not testable from the lib are excluded from coverage so the
 # number reflects the testable surface, matching what Codecov ignores.
-COVERAGE_IGNORE := src/(main|assets|update)\.rs
+COVERAGE_IGNORE := src/(main|assets|update|entrypoint)\.rs
 
 .PHONY: coverage
 coverage: ## Line coverage summary via cargo-llvm-cov (matches CI exclusions)

@@ -29,11 +29,14 @@ Documentation-only commits do not need a version bump.
 
 ## Test coverage
 
-The project aims for **high coverage on the testable surface**, not literal 100% across every line. Three files are excluded from coverage on purpose, both locally (`make coverage`) and in CI (`codecov.yml` + the `--ignore-filename-regex` flag):
+The project aims for **100% coverage on the testable surface**. Four files are excluded from coverage, both locally (`make coverage`) and in CI (`codecov.yml` + the `--ignore-filename-regex` flag). Each file carries a header comment explaining its exemption; the short version:
 
-- `src/main.rs` — binary entry point. Already exercised end-to-end by the integration tests via `app::run`; running the bin under coverage adds noise without value.
-- `src/assets.rs` — a single `derive(RustEmbed)` declaration. The macro expansion is verified implicitly by every test that serves a static asset.
-- `src/update.rs` — the `--update` self-update flow makes real GitHub API calls. The pure logic (`parse_semver`, `is_newer`) is unit-tested; the network paths are excluded so we don't ship flaky tests.
+- `src/main.rs` — binary entry point. Exercised end-to-end by the integration tests via `app::start`; re-running the bin under coverage adds noise without value.
+- `src/assets.rs` — a single `derive(RustEmbed)` declaration. Covered implicitly by every test that serves a static asset.
+- `src/update.rs` — the `--update` self-update flow makes real GitHub API calls. Pure logic (`parse_semver`, `is_newer`) is unit-tested directly; network paths are excluded.
+- `src/entrypoint.rs` — top-level `run()`, signal-blocking `wait_for_shutdown`, the network update-check spawn, and `open_browser`. None of these can be deterministically driven from a unit test runner.
+
+When a feature *can* be tested it must be — exclusions are for code that physically can't be exercised, not for skipping work. If you find yourself wanting to add a file to the ignore list, justify it in that file's header comment first.
 
 Run `make coverage` for a summary, `make coverage-html` for a per-line report. New code should land covered.
 
