@@ -234,20 +234,27 @@ Bodies and the buffer live in RAM only. Restart the binary and history starts fr
 
 Requires a stable Rust toolchain (1.78+).
 
+A `Makefile` wraps the common tasks — run `make` (or `make help`) to see them all:
+
 ```sh
-# Run with `cargo run`
+make run           # cargo run -- -p 9000 -u 9001
+make test          # cargo test --all-features
+make lint          # fmt-check + clippy with -D warnings
+make check         # lint + test (the full pre-commit gate)
+make coverage      # cargo-llvm-cov summary
+make smoke         # end-to-end smoke test of the release binary
+make release       # optimised build at target/release/postbin-ultra
+make install       # cargo install --path .
+```
+
+If you'd rather drive cargo directly:
+
+```sh
 cargo run
-
-# Tests (unit + integration)
 cargo test
-
-# Lints
 cargo fmt -- --check
 cargo clippy --all-targets --all-features -- -D warnings
-
-# Coverage
-cargo install cargo-llvm-cov
-cargo llvm-cov --lib --tests --summary-only
+cargo install cargo-llvm-cov && cargo llvm-cov --lib --tests --summary-only
 ```
 
 The codebase is small and structured for tests:
