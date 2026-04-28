@@ -61,7 +61,8 @@ async fn spawn_with_capture_port(
 ) -> SocketAddr {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
-    let app = ui::router(store, capture_port);
+    let forward = postbin_ultra::capture::new_forward_switch(None);
+    let app = ui::router(store, capture_port, forward);
     tokio::spawn(async move { axum::serve(listener, app).await });
     addr
 }
@@ -263,6 +264,109 @@ async fn static_assets_served() {
 }
 
 #[tokio::test]
+async fn forward_endpoint_reports_disabled_by_default() {
+    let store = RequestStore::new(10);
+    let addr = spawn(store).await;
+    let v: serde_json::Value = client()
+        .get(format!("http://{addr}/api/forward"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(v["enabled"], false);
+    assert!(v["url"].is_null());
+}
+
+#[tokio::test]
+async fn forward_endpoint_put_get_delete_round_trip() {
+    let store = RequestStore::new(10);
+    let addr = spawn(store).await;
+    let body = serde_json::json!({
+        "url": "http://upstream.example.com:8080/v1",
+        "timeout_secs": 7,
+        "insecure": true,
+    });
+    let v: serde_json::Value = client()
+        .put(format!("http://{addr}/api/forward"))
+        .json(&body)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(v["enabled"], true);
+    assert_eq!(v["url"], "http://upstream.example.com:8080/v1");
+    assert_eq!(v["timeout_secs"], 7);
+    assert_eq!(v["insecure"], true);
+
+    let g: serde_json::Value = client()
+        .get(format!("http://{addr}/api/forward"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(g["url"], "http://upstream.example.com:8080/v1");
+
+    let d = client()
+        .delete(format!("http://{addr}/api/forward"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(d.status(), 204);
+
+    let final_state: serde_json::Value = client()
+        .get(format!("http://{addr}/api/forward"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(final_state["enabled"], false);
+}
+
+#[tokio::test]
+async fn forward_endpoint_rejects_bad_url_and_scheme() {
+    let store = RequestStore::new(10);
+    let addr = spawn(store).await;
+
+    let bad_url = client()
+        .put(format!("http://{addr}/api/forward"))
+        .json(&serde_json::json!({"url": "not-a-url"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(bad_url.status(), 400);
+    let body: serde_json::Value = bad_url.json().await.unwrap();
+    assert_eq!(body["error"], "invalid_url");
+
+    let bad_scheme = client()
+        .put(format!("http://{addr}/api/forward"))
+        .json(&serde_json::json!({"url": "ftp://example.com"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(bad_scheme.status(), 400);
+    let body: serde_json::Value = bad_scheme.json().await.unwrap();
+    assert_eq!(body["error"], "invalid_scheme");
+
+    let bad_timeout = client()
+        .put(format!("http://{addr}/api/forward"))
+        .json(&serde_json::json!({"url": "http://x", "timeout_secs": 0}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(bad_timeout.status(), 400);
+    let body: serde_json::Value = bad_timeout.json().await.unwrap();
+    assert_eq!(body["error"], "invalid_timeout");
+}
+
+#[tokio::test]
 async fn ui_html_advertises_shortcuts_button_and_uses_shift_x_for_clear() {
     let store = RequestStore::new(10);
     let addr = spawn(store).await;
@@ -285,6 +389,52 @@ async fn ui_html_advertises_shortcuts_button_and_uses_shift_x_for_clear() {
     assert!(
         !body.contains(r#"<kbd>c</kbd></td><td>Clear all"#),
         "old `c` shortcut for clear must be removed"
+    );
+}
+
+#[tokio::test]
+async fn ui_html_includes_forward_pill_and_dialog() {
+    let store = RequestStore::new(10);
+    let addr = spawn(store).await;
+    let body = client()
+        .get(format!("http://{addr}/"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(body.contains(r#"id="forward-pill""#));
+    assert!(body.contains(r#"id="forward-dialog""#));
+    assert!(body.contains(r#"id="forward-input-url""#));
+    assert!(body.contains(r#"id="forward-input-timeout""#));
+    assert!(body.contains(r#"id="forward-input-insecure""#));
+    assert!(body.contains(r#"id="forward-disable""#));
+}
+
+#[tokio::test]
+async fn ui_js_wires_forward_endpoints() {
+    let store = RequestStore::new(10);
+    let addr = spawn(store).await;
+    let body = client()
+        .get(format!("http://{addr}/app.js"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(
+        body.contains("/api/forward"),
+        "app.js should call the forward API"
+    );
+    assert!(
+        body.contains("renderForwardChip"),
+        "app.js should render the forward chip"
+    );
+    assert!(
+        body.contains("'PUT'") && body.contains("'DELETE'"),
+        "app.js should use both PUT and DELETE on /api/forward"
     );
 }
 

@@ -5,8 +5,10 @@ A local HTTP request inspector for developers. Capture any method, any path, any
 [![CI](https://github.com/MPJHorner/PostbinUltra/actions/workflows/ci.yml/badge.svg)](https://github.com/MPJHorner/PostbinUltra/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/MPJHorner/PostbinUltra?display_name=tag&sort=semver)](https://github.com/MPJHorner/PostbinUltra/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Rust](https://img.shields.io/badge/rust-1.78%2B-orange.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/rust-1.85%2B-orange.svg)](https://www.rust-lang.org)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)](#install)
+
+> Get the [latest release](https://github.com/MPJHorner/PostbinUltra/releases/latest) · [changelog](CHANGELOG.md)
 
 ![Postbin Ultra web UI](docs/screenshot.png)
 
@@ -137,6 +139,7 @@ postbin-ultra [OPTIONS]
       --forward <URL>          Proxy each captured request to URL and return upstream's response
       --forward-timeout <SECS> Per-request forward timeout in seconds [default: 30]
       --forward-insecure       Skip TLS certificate verification when forwarding
+      --log-file <FILE>        Append every captured request to FILE as NDJSON
       --update                 Download the latest release and replace this binary, then exit
       --no-update-check        Skip the startup check for newer releases
   -h, --help
@@ -169,6 +172,43 @@ postbin-ultra --no-update-check
 
 # Proxy mode: capture every request AND forward it to a real upstream
 postbin-ultra --forward https://api.example.com
+
+# Append each captured request to a NDJSON log you can tail
+postbin-ultra --log-file ./requests.ndjson
+
+# Proxy + log: pair with an AI assistant that watches the file
+postbin-ultra --forward https://api.example.com --log-file ./requests.ndjson
+```
+
+## Logging to a file
+
+`--log-file PATH` appends every captured request to a file, one JSON object per line (NDJSON). The file is created if it doesn't exist and is never truncated, so multiple runs accumulate into the same log unless you delete it.
+
+```sh
+postbin-ultra --log-file ./requests.ndjson
+```
+
+Each line is the same JSON shape as `/api/requests/{id}` (see [API reference](#api-reference)). Tail it the same way you'd tail any log:
+
+```sh
+tail -f requests.ndjson | jq 'select(.method == "POST") | {path, body}'
+```
+
+### Pairing with an AI assistant
+
+The combination `--forward URL --log-file PATH` is the killer setup when you're coding with an AI assistant (Claude Code, Cursor, etc.) and you need it to *see* the live traffic flowing through the system you're debugging.
+
+1. Run Postbin Ultra in proxy mode pointed at your dev backend, with a log file.
+2. Point your webhook source / SDK / test client at Postbin's capture port.
+3. Tell your assistant the path: "watch `./requests.ndjson` and tell me what's coming in."
+
+The assistant reads the structured NDJSON, you keep working, and the upstream still gets every request. No copy-pasting curl traces, no screenshotting the bin, no narrating headers from memory.
+
+```sh
+postbin-ultra \
+  --forward http://127.0.0.1:3000 \
+  --log-file ./requests.ndjson \
+  --max-body-size 5242880
 ```
 
 ## Forward / proxy mode
@@ -195,6 +235,8 @@ Other knobs:
 
 - `--forward-timeout SECS` (default 30) — per-request timeout for the upstream call.
 - `--forward-insecure` — skip TLS verification, useful for self-signed dev backends.
+
+The web UI exposes a **Forward** chip in the top bar that shows the current upstream (or `off`) and opens a small dialog to enable, edit, or disable proxy mode at runtime. Programmatic equivalents live at `GET /api/forward`, `PUT /api/forward` (`{"url":"…","timeout_secs":30,"insecure":false}`), and `DELETE /api/forward`.
 
 ## Updates
 

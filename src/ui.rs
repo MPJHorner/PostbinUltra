@@ -1,5 +1,6 @@
 use std::convert::Infallible;
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::{
     extract::{Path, Query, State},
@@ -19,6 +20,7 @@ use uuid::Uuid;
 
 use crate::{
     assets::Assets,
+    capture::{ForwardConfig, ForwardSwitch},
     request::CapturedRequest,
     store::{RequestStore, StoreEvent},
 };
@@ -26,8 +28,13 @@ use crate::{
 /// Build the UI router. `capture_port` is included in `/api/health` so the
 /// browser app can render the correct capture URL even when port-fallback
 /// shifted us off the default; `None` keeps the field absent (for tests or
-/// `--no-ui` callers that don't have a capture port handy).
-pub fn router(store: Arc<RequestStore>, capture_port: Option<u16>) -> Router {
+/// `--no-ui` callers that don't have a capture port handy). `forward` is the
+/// shared switch read and mutated via `/api/forward`.
+pub fn router(
+    store: Arc<RequestStore>,
+    capture_port: Option<u16>,
+    forward: ForwardSwitch,
+) -> Router {
     Router::new()
         .route("/", get(serve_index))
         .route("/api/health", get(health))
@@ -35,11 +42,16 @@ pub fn router(store: Arc<RequestStore>, capture_port: Option<u16>) -> Router {
         .route("/api/requests/{id}", get(get_request))
         .route("/api/requests/{id}/raw", get(get_request_raw))
         .route("/api/stream", get(stream))
+        .route(
+            "/api/forward",
+            get(get_forward).put(put_forward).delete(delete_forward),
+        )
         .fallback(serve_asset)
         .layer(CorsLayer::permissive())
         .with_state(UiState {
             store,
             capture_port,
+            forward,
         })
 }
 
@@ -47,11 +59,18 @@ pub fn router(store: Arc<RequestStore>, capture_port: Option<u16>) -> Router {
 struct UiState {
     store: Arc<RequestStore>,
     capture_port: Option<u16>,
+    forward: ForwardSwitch,
 }
 
 impl axum::extract::FromRef<UiState> for Arc<RequestStore> {
     fn from_ref(s: &UiState) -> Self {
         s.store.clone()
+    }
+}
+
+impl axum::extract::FromRef<UiState> for ForwardSwitch {
+    fn from_ref(s: &UiState) -> Self {
+        s.forward.clone()
     }
 }
 
@@ -140,6 +159,89 @@ async fn get_request_raw(
 async fn clear_requests(State(store): State<Arc<RequestStore>>) -> StatusCode {
     store.clear();
     StatusCode::NO_CONTENT
+}
+
+async fn get_forward(State(switch): State<ForwardSwitch>) -> Json<serde_json::Value> {
+    let snapshot = switch.read().await.clone();
+    Json(forward_to_json(&snapshot))
+}
+
+#[derive(Deserialize)]
+struct PutForwardBody {
+    url: String,
+    timeout_secs: Option<u64>,
+    insecure: Option<bool>,
+}
+
+async fn put_forward(
+    State(switch): State<ForwardSwitch>,
+    Json(body): Json<PutForwardBody>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let parsed = url::Url::parse(&body.url).map_err(|e| {
+        forward_error(
+            StatusCode::BAD_REQUEST,
+            "invalid_url",
+            &format!("invalid URL '{}': {e}", body.url),
+        )
+    })?;
+    match parsed.scheme() {
+        "http" | "https" => {}
+        other => {
+            return Err(forward_error(
+                StatusCode::BAD_REQUEST,
+                "invalid_scheme",
+                &format!("URL must use http or https, got '{other}'"),
+            ));
+        }
+    }
+    let timeout_secs = body.timeout_secs.unwrap_or(30);
+    if timeout_secs == 0 {
+        return Err(forward_error(
+            StatusCode::BAD_REQUEST,
+            "invalid_timeout",
+            "timeout_secs must be > 0",
+        ));
+    }
+    let insecure = body.insecure.unwrap_or(false);
+    let cfg = ForwardConfig::build(parsed, Duration::from_secs(timeout_secs), insecure)
+        .map_err(|e| forward_error(StatusCode::INTERNAL_SERVER_ERROR, "build_failed", &e))?;
+    let mut guard = switch.write().await;
+    *guard = Some(cfg.clone());
+    drop(guard);
+    Ok(Json(forward_to_json(&Some(cfg))))
+}
+
+async fn delete_forward(State(switch): State<ForwardSwitch>) -> StatusCode {
+    *switch.write().await = None;
+    StatusCode::NO_CONTENT
+}
+
+fn forward_to_json(cfg: &Option<ForwardConfig>) -> serde_json::Value {
+    match cfg {
+        Some(c) => serde_json::json!({
+            "enabled": true,
+            "url": c.base.to_string(),
+            "timeout_secs": c.timeout.as_secs(),
+            "insecure": c.insecure,
+        }),
+        None => serde_json::json!({
+            "enabled": false,
+            "url": null,
+            "timeout_secs": 30,
+            "insecure": false,
+        }),
+    }
+}
+
+fn forward_error(
+    status: StatusCode,
+    code: &str,
+    message: &str,
+) -> (StatusCode, Json<serde_json::Value>) {
+    (
+        status,
+        Json(serde_json::json!({"error": code, "reason": message})),
+    )
 }
 
 async fn stream(

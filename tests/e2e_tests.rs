@@ -158,3 +158,55 @@ async fn full_app_concurrent_requests_all_captured() {
     assert_eq!(store.len(), n);
     running.shutdown();
 }
+
+#[tokio::test]
+async fn log_file_writes_one_ndjson_line_per_request() {
+    let dir = std::env::temp_dir();
+    let path = dir.join(format!("postbin-ndjson-{}.log", uuid::Uuid::new_v4()));
+    let path_str = path.to_string_lossy().to_string();
+    // Pre-clean so a prior failed run can't mask the test.
+    let _ = std::fs::remove_file(&path);
+
+    let c = cli(&["-p", "0", "-u", "0", "--log-file", &path_str]);
+    let running = app::start(&c, quiet_printer()).await.unwrap();
+    let capture_url = format!("http://{}", running.capture_addr);
+
+    let client = Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    client
+        .post(format!("{capture_url}/log/test"))
+        .body("hello-log")
+        .send()
+        .await
+        .unwrap();
+    client
+        .post(format!("{capture_url}/log/two"))
+        .body("second")
+        .send()
+        .await
+        .unwrap();
+
+    // The log writer flushes after each line, but we still need to give the
+    // broadcast subscriber a moment to drain.
+    let mut content = String::new();
+    for _ in 0..50 {
+        content = std::fs::read_to_string(&path).unwrap_or_default();
+        if content.lines().count() >= 2 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let lines: Vec<&str> = content.lines().collect();
+    assert_eq!(lines.len(), 2, "expected 2 NDJSON lines, got: {content:?}");
+    let first: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+    let second: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+    assert_eq!(first["path"], "/log/test");
+    assert_eq!(first["body"], "hello-log");
+    assert_eq!(second["path"], "/log/two");
+    assert_eq!(second["body"], "second");
+
+    running.shutdown();
+    let _ = std::fs::remove_file(&path);
+}

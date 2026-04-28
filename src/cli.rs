@@ -6,8 +6,8 @@ use clap::Parser;
 #[command(
     name = "postbin-ultra",
     version,
-    about = "A blazing-fast local request inspector for developers.",
-    long_about = "PostbinUltra captures every HTTP request that hits its capture port — any method, any path — and shows them live in your terminal and in a beautiful real-time web UI."
+    about = "Local HTTP request inspector. Capture, view, replay, and proxy any HTTP request on a port you choose.",
+    long_about = "Postbin Ultra captures every HTTP request that hits its capture port (any method, any path), prints a colour-coded line in your terminal, and shows the full detail in a live web UI. Optional --forward turns it into a transparent proxy that relays each request to an upstream URL and returns the upstream response. Optional --log-file writes captured requests as NDJSON to a file you can tail or feed into other tools (handy when pairing with an AI assistant that should see incoming traffic)."
 )]
 pub struct Cli {
     /// Port the capture server listens on. Send your requests here.
@@ -70,6 +70,13 @@ pub struct Cli {
     /// Skip TLS certificate verification when forwarding (dev/staging only).
     #[arg(long)]
     pub forward_insecure: bool,
+
+    /// Append every captured request to FILE as one JSON object per line (NDJSON).
+    /// The file is created if missing and never truncated. Useful when pairing
+    /// with --forward to give an AI assistant or other tool a tail-able feed
+    /// of requests as they arrive.
+    #[arg(long, value_name = "FILE")]
+    pub log_file: Option<String>,
 }
 
 impl Cli {

@@ -15,24 +15,39 @@ use http_body_util::BodyExt;
 #[cfg(test)]
 use http_body_util::Full;
 use serde_json::json;
+use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::{request::CapturedRequest, store::RequestStore};
 
+/// Shared, runtime-mutable handle to the proxy/forward configuration. Both
+/// the capture handler (read each request) and the UI handler (PUT/DELETE)
+/// hold the same `Arc` so changes are visible immediately.
+pub type ForwardSwitch = Arc<RwLock<Option<ForwardConfig>>>;
+
+pub fn new_forward_switch(initial: Option<ForwardConfig>) -> ForwardSwitch {
+    Arc::new(RwLock::new(initial))
+}
+
 #[derive(Clone, Debug)]
 pub struct CaptureConfig {
     pub max_body_size: usize,
-    pub forward: Option<ForwardConfig>,
+    /// Shared forward switch. When the inner `Option` is `None`, requests are
+    /// captured and acked with the standard JSON; when `Some`, they are also
+    /// forwarded and the upstream response is relayed.
+    pub forward: ForwardSwitch,
 }
 
-/// Configuration for proxy mode. Built once at startup; the inner
-/// [`reqwest::Client`] is reused for the connection pool.
+/// Configuration for proxy mode. Built once per `--forward` value (initial CLI
+/// value or every PUT to `/api/forward`); the inner [`reqwest::Client`] is
+/// reused for connection pooling for as long as this config is live.
 #[derive(Clone, Debug)]
 pub struct ForwardConfig {
-    /// Upstream base URL with any trailing slash already stripped from its path
-    /// component. Incoming `path` and `query` are concatenated onto it.
+    /// Upstream base URL. Incoming `path` and `query` are appended onto it,
+    /// after stripping any trailing slash from the base path.
     pub base: url::Url,
     pub timeout: Duration,
+    pub insecure: bool,
     pub client: reqwest::Client,
 }
 
@@ -50,6 +65,7 @@ impl ForwardConfig {
         Ok(Self {
             base: url,
             timeout,
+            insecure,
             client,
         })
     }
@@ -59,7 +75,7 @@ impl Default for CaptureConfig {
     fn default() -> Self {
         Self {
             max_body_size: 10 * 1024 * 1024,
-            forward: None,
+            forward: new_forward_switch(None),
         }
     }
 }
@@ -123,9 +139,12 @@ async fn handle(
 
     state.store.push(captured);
 
-    if let Some(forward) = state.config.forward.as_ref() {
+    // Snapshot the forward config under a brief read lock so we don't hold
+    // it across the upstream HTTP call.
+    let forward_snapshot = state.config.forward.read().await.clone();
+    if let Some(forward) = forward_snapshot {
         return forward_request(
-            forward,
+            &forward,
             captured_id,
             method,
             &path,

@@ -13,6 +13,7 @@
     captureUrl: null,
     bodyCache: new Map(),
     lastReplayUrl: '',
+    forward: { enabled: false, url: null, timeout_secs: 30, insecure: false },
   };
 
   const $ = (sel) => document.querySelector(sel);
@@ -26,6 +27,7 @@
     wireUi();
     await loadHealth();
     await loadInitial();
+    await loadForward();
     connectStream();
   }
 
@@ -51,7 +53,113 @@
     $('#help-close')?.addEventListener('click', () => $('#help-dialog').close());
     $('#shortcuts-btn')?.addEventListener('click', () => $('#help-dialog').showModal());
 
+    $('#forward-pill')?.addEventListener('click', openForwardDialog);
+    $('#forward-cancel')?.addEventListener('click', () => $('#forward-dialog').close());
+    $('#forward-disable')?.addEventListener('click', disableForward);
+    $('#forward-form')?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      saveForward();
+    });
+
     document.addEventListener('keydown', onKeydown);
+  }
+
+  // ───────── forward (proxy) ─────────
+  async function loadForward() {
+    try {
+      const res = await fetch('/api/forward');
+      if (!res.ok) return;
+      state.forward = await res.json();
+      renderForwardChip();
+    } catch {}
+  }
+
+  function renderForwardChip() {
+    const chip = $('#forward-pill');
+    const code = $('#forward-url-display');
+    if (!chip || !code) return;
+    const f = state.forward;
+    if (!f || !f.enabled) {
+      chip.classList.remove('forward-on');
+      code.textContent = 'off';
+      chip.title = 'Click to enable proxy forward';
+    } else {
+      chip.classList.add('forward-on');
+      code.textContent = f.url;
+      const sec = f.insecure ? ' · insecure' : '';
+      chip.title = `Forwarding to ${f.url} (timeout ${f.timeout_secs}s${sec}). Click to edit.`;
+    }
+  }
+
+  function openForwardDialog() {
+    const f = state.forward || { enabled: false, url: '', timeout_secs: 30, insecure: false };
+    $('#forward-input-url').value = f.url || '';
+    $('#forward-input-timeout').value = f.timeout_secs || 30;
+    $('#forward-input-insecure').checked = !!f.insecure;
+    showForwardError(null);
+    $('#forward-disable').hidden = !f.enabled;
+    $('#forward-dialog').showModal();
+    setTimeout(() => $('#forward-input-url').focus(), 0);
+  }
+
+  async function saveForward() {
+    const url = $('#forward-input-url').value.trim();
+    const timeout_secs = Number($('#forward-input-timeout').value) || 30;
+    const insecure = $('#forward-input-insecure').checked;
+    if (!url) {
+      showForwardError('URL is required');
+      return;
+    }
+    try {
+      const res = await fetch('/api/forward', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url, timeout_secs, insecure }),
+      });
+      if (!res.ok) {
+        let msg = `${res.status}`;
+        try {
+          const err = await res.json();
+          msg = err.reason || err.error || msg;
+        } catch {}
+        showForwardError(msg);
+        return;
+      }
+      state.forward = await res.json();
+      renderForwardChip();
+      $('#forward-dialog').close();
+      toast('Forward enabled');
+    } catch (e) {
+      showForwardError(String(e));
+    }
+  }
+
+  async function disableForward() {
+    try {
+      const res = await fetch('/api/forward', { method: 'DELETE' });
+      if (!res.ok && res.status !== 204) {
+        showForwardError(`failed to disable (${res.status})`);
+        return;
+      }
+      state.forward = { enabled: false, url: null, timeout_secs: 30, insecure: false };
+      renderForwardChip();
+      $('#forward-dialog').close();
+      toast('Forward disabled');
+    } catch (e) {
+      showForwardError(String(e));
+    }
+  }
+
+  function showForwardError(msg) {
+    const e = $('#forward-error');
+    if (!e) return;
+    if (msg) {
+      e.textContent = msg;
+      e.hidden = false;
+    } else {
+      e.textContent = '';
+      e.hidden = true;
+    }
   }
 
   // ───────── data ─────────

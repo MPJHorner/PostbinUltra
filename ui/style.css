@@ -734,6 +734,131 @@ button { font-family: inherit; }
   opacity: 1;
 }
 
+/* ───── forward / proxy chip + dialog ───── */
+.forward-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 12px;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 12px;
+  font-family: inherit;
+  max-width: 320px;
+  overflow: hidden;
+  transition: border-color 120ms, background 120ms;
+}
+.forward-pill:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-soft);
+}
+.forward-pill .forward-arrow {
+  color: var(--text-dim);
+  font-weight: 700;
+}
+.forward-pill .forward-label {
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.forward-pill code {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+.forward-pill.forward-on {
+  border-color: var(--accent);
+}
+.forward-pill.forward-on .forward-arrow,
+.forward-pill.forward-on .forward-label {
+  color: var(--accent);
+}
+.forward-pill.forward-on code {
+  color: var(--text);
+}
+
+.forward-dialog {
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 22px 24px;
+  width: min(460px, 92vw);
+  font-size: 13px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.5);
+}
+.forward-dialog::backdrop { background: rgba(0,0,0,0.45); }
+.forward-dialog h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+.forward-dialog .forward-intro {
+  margin: 0 0 16px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.forward-dialog form { display: flex; flex-direction: column; gap: 12px; }
+.forward-dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+.forward-dialog .forward-checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.forward-dialog input[type="url"],
+.forward-dialog input[type="number"] {
+  padding: 8px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 12.5px;
+  font-family: var(--font-mono);
+  outline: none;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
+.forward-dialog input[type="url"]:focus,
+.forward-dialog input[type="number"]:focus {
+  border-color: var(--accent);
+}
+.forward-dialog .forward-error {
+  margin: 0;
+  padding: 8px 10px;
+  background: rgba(255, 107, 107, 0.08);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  border-radius: 6px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+.forward-dialog .forward-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
 /* ───── help ───── */
 .help-dialog {
   border: 1px solid var(--border);

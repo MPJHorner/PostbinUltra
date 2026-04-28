@@ -34,6 +34,11 @@
 
     <div class="actions">
       <span class="counter"><span id="count">0</span> <span class="muted">captured</span></span>
+      <button class="forward-pill" id="forward-pill" type="button" aria-label="Configure proxy forward">
+        <span class="forward-arrow" aria-hidden="true">→</span>
+        <span class="forward-label">Forward</span>
+        <code id="forward-url-display">off</code>
+      </button>
       <button class="btn btn-ghost" id="pause-toggle" title="Pause incoming (P)">
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M4 3h3v10H4zM9 3h3v10H9z"/></svg>
         <span class="btn-label">Pause</span>
@@ -123,6 +128,31 @@
     </table>
     <p class="help-note">Modifier keys (⌘ / Ctrl / Alt) are never intercepted, so <kbd>⌘</kbd>+<kbd>C</kbd> still copies and <kbd>⌘</kbd>+<kbd>R</kbd> still reloads.</p>
     <button class="btn btn-ghost" id="help-close">Close</button>
+  </dialog>
+
+  <dialog class="forward-dialog" id="forward-dialog">
+    <h3>Forward (proxy mode)</h3>
+    <p class="forward-intro">Forward each captured request to an upstream URL and return its response to the original caller. Path and query are appended to the URL.</p>
+    <form id="forward-form">
+      <label>
+        Upstream URL
+        <input id="forward-input-url" type="url" placeholder="https://api.example.com/v2" autocomplete="off" required />
+      </label>
+      <label>
+        Timeout (seconds)
+        <input id="forward-input-timeout" type="number" min="1" max="600" value="30" />
+      </label>
+      <label class="forward-checkbox">
+        <input id="forward-input-insecure" type="checkbox" />
+        <span>Skip TLS certificate verification (dev only)</span>
+      </label>
+      <p class="forward-error" id="forward-error" hidden></p>
+      <div class="forward-actions">
+        <button class="btn btn-ghost" type="button" id="forward-cancel">Cancel</button>
+        <button class="btn btn-danger" type="button" id="forward-disable">Disable forward</button>
+        <button class="btn" type="submit" id="forward-save">Save</button>
+      </div>
+    </form>
   </dialog>
 
   <script src="app.js"></script>

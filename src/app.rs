@@ -42,7 +42,7 @@ async fn bind_with_fallback(bind: IpAddr, port: u16) -> io::Result<TcpListener> 
 use std::time::Duration;
 
 use crate::{
-    capture::{self, CaptureConfig, ForwardConfig},
+    capture::{self, new_forward_switch, CaptureConfig, ForwardConfig, ForwardSwitch},
     cli::Cli,
     output::{Printer, PrinterOptions},
     store::{RequestStore, StoreEvent},
@@ -57,6 +57,7 @@ pub struct Running {
     pub capture_task: JoinHandle<std::io::Result<()>>,
     pub ui_task: Option<JoinHandle<std::io::Result<()>>>,
     pub printer_task: Option<JoinHandle<()>>,
+    pub log_task: Option<JoinHandle<()>>,
 }
 
 impl Running {
@@ -66,6 +67,9 @@ impl Running {
             t.abort();
         }
         if let Some(t) = self.printer_task {
+            t.abort();
+        }
+        if let Some(t) = self.log_task {
             t.abort();
         }
     }
@@ -86,7 +90,7 @@ pub async fn start(cli: &Cli, printer: Printer) -> Result<Running> {
     if cli.port != 0 && capture_addr.port() != cli.port {
         printer.print_port_fallback("capture", cli.port, capture_addr.port());
     }
-    let forward = match cli.forward.as_deref() {
+    let initial_forward = match cli.forward.as_deref() {
         Some(raw) => {
             let parsed = url::Url::parse(raw).context("parsing --forward URL")?;
             let timeout = Duration::from_secs(cli.forward_timeout);
@@ -97,18 +101,15 @@ pub async fn start(cli: &Cli, printer: Printer) -> Result<Running> {
         }
         None => None,
     };
-    let forward_banner = forward.as_ref().map(|f| {
-        (
-            f.base.to_string(),
-            f.timeout.as_secs(),
-            cli.forward_insecure,
-        )
-    });
+    let forward_banner = initial_forward
+        .as_ref()
+        .map(|f| (f.base.to_string(), f.timeout.as_secs(), f.insecure));
+    let forward_switch: ForwardSwitch = new_forward_switch(initial_forward);
     let capture_router = capture::router(
         store.clone(),
         CaptureConfig {
             max_body_size: cli.max_body_size,
-            forward,
+            forward: forward_switch.clone(),
         },
     );
     let capture_task = tokio::spawn(async move {
@@ -129,7 +130,11 @@ pub async fn start(cli: &Cli, printer: Printer) -> Result<Running> {
         if cli.ui_port != 0 && addr.port() != cli.ui_port {
             printer.print_port_fallback("UI", cli.ui_port, addr.port());
         }
-        let router = ui::router(store.clone(), Some(capture_addr.port()));
+        let router = ui::router(
+            store.clone(),
+            Some(capture_addr.port()),
+            forward_switch.clone(),
+        );
         let task = tokio::spawn(async move { axum::serve(listener, router).await });
         (Some(addr), Some(task))
     };
@@ -167,6 +172,18 @@ pub async fn start(cli: &Cli, printer: Printer) -> Result<Running> {
         None
     };
 
+    let log_task = if let Some(path) = cli.log_file.as_deref() {
+        let file = tokio::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .await
+            .with_context(|| format!("opening --log-file {path}"))?;
+        Some(spawn_log_writer(file, store.subscribe()))
+    } else {
+        None
+    };
+
     if cli.open {
         if let Some(url) = &ui_url {
             let _ = open_browser(url);
@@ -180,6 +197,35 @@ pub async fn start(cli: &Cli, printer: Printer) -> Result<Running> {
         capture_task,
         ui_task,
         printer_task,
+        log_task,
+    })
+}
+
+/// Append each captured request to `file` as one NDJSON line, flushing after
+/// every write so a `tail -f` consumer (or an AI assistant) sees data
+/// immediately. Lagged events are skipped (the file is meant for live
+/// observation, not exhaustive accounting); a closed channel ends the task.
+fn spawn_log_writer(
+    file: tokio::fs::File,
+    mut rx: tokio::sync::broadcast::Receiver<StoreEvent>,
+) -> JoinHandle<()> {
+    use tokio::io::AsyncWriteExt;
+    tokio::spawn(async move {
+        let mut file = file;
+        loop {
+            match rx.recv().await {
+                Ok(StoreEvent::Request(req)) => {
+                    if let Ok(s) = serde_json::to_string(&*req) {
+                        let _ = file.write_all(s.as_bytes()).await;
+                        let _ = file.write_all(b"\n").await;
+                        let _ = file.flush().await;
+                    }
+                }
+                Ok(StoreEvent::Cleared) => {}
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            }
+        }
     })
 }
 
@@ -229,6 +275,9 @@ async fn wait_for_shutdown(mut running: Running) -> Result<()> {
     }
     running.capture_task.abort();
     if let Some(t) = running.printer_task {
+        t.abort();
+    }
+    if let Some(t) = running.log_task {
         t.abort();
     }
     Ok(())
@@ -394,6 +443,7 @@ mod tests {
             capture_task: tokio::spawn(async { Ok::<(), std::io::Error>(()) }),
             ui_task: running.ui_task,
             printer_task: running.printer_task,
+            log_task: running.log_task,
         };
         // Should return promptly because capture_task already completed.
         let res =

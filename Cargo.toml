@@ -1,9 +1,9 @@
 [package]
 name = "postbin-ultra"
-version = "0.1.0"
+version = "0.6.0"
 edition = "2021"
 rust-version = "1.85"
-description = "A blazing-fast local request inspector for developers."
+description = "Local HTTP request inspector with proxy mode and live web UI."
 authors = ["MPJHorner <matt@heyjodie.com>"]
 license = "MIT"
 repository = "https://github.com/MPJHorner/PostbinUltra"

@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use postbin_ultra::{
-    capture::{self, CaptureConfig, ForwardConfig},
+    capture::{self, new_forward_switch, CaptureConfig, ForwardConfig},
     store::RequestStore,
 };
 use reqwest::Client;
@@ -27,7 +27,7 @@ async fn spawn_with_forward(
         store,
         CaptureConfig {
             max_body_size,
-            forward,
+            forward: new_forward_switch(forward),
         },
     );
     tokio::spawn(async move {
