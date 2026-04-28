@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="theme-color" content="#0b0d12" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)" />
+  <meta name="color-scheme" content="dark light" />
+  {{head}}
+  <link rel="icon" href="{{base}}/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="{{base}}/apple-touch-icon.svg" />
+  <link rel="stylesheet" href="{{base}}/style.css" />
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('pbu-theme');
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body class="home">
+  {{nav}}
+  <main class="page home-page">
+    <article class="prose">
+      {{content}}
+    </article>
+  </main>
+  {{footer}}
+  <script src="{{base}}/theme.js" defer></script>
+  <script src="{{base}}/copy.js" defer></script>
+</body>
+</html>

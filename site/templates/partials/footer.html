@@ -1,0 +1,38 @@
+<footer class="footer" role="contentinfo">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <div class="brand">
+        <svg class="brand-logo" viewBox="0 0 32 32" width="20" height="20" aria-hidden="true">
+          <rect width="32" height="32" rx="6" fill="currentColor" opacity=".15"/>
+          <path d="M11 9 L21 16 L11 23 Z" fill="currentColor"/>
+        </svg>
+        <span class="brand-name">Postbin Ultra</span>
+      </div>
+      <p class="footer-tag">Local HTTP request inspector for developers.</p>
+      <p class="footer-meta">MIT licensed. Built in Rust. Runs on your machine.</p>
+    </div>
+
+    <nav class="footer-nav" aria-label="Documentation">
+      <h4>Docs</h4>
+      <ul>
+        {{footer_links}}
+      </ul>
+    </nav>
+
+    <nav class="footer-nav" aria-label="Project">
+      <h4>Project</h4>
+      <ul>
+        <li><a href="{{repo}}" rel="noopener noreferrer">GitHub</a></li>
+        <li><a href="{{repo}}/releases/latest" rel="noopener noreferrer">Latest release</a></li>
+        <li><a href="{{repo}}/issues" rel="noopener noreferrer">Issues</a></li>
+        <li><a href="{{base}}/changelog.xml">Changelog RSS</a></li>
+        <li><a href="{{repo}}/blob/main/LICENSE" rel="noopener noreferrer">License</a></li>
+      </ul>
+    </nav>
+  </div>
+  <div class="footer-bottom">
+    <span>© {{year}} MPJHorner</span>
+    <span class="dot">·</span>
+    <a href="{{repo}}" rel="noopener noreferrer">github.com/MPJHorner/PostbinUltra</a>
+  </div>
+</footer>
