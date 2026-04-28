@@ -2,6 +2,8 @@
 
 > A blazing-fast local request inspector for developers. One Rust binary, one CLI, one beautiful web UI.
 
+![PostbinUltra web UI](docs/screenshot.png)
+
 [![CI](https://github.com/MPJHorner/PostbinUltra/actions/workflows/ci.yml/badge.svg)](https://github.com/MPJHorner/PostbinUltra/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/MPJHorner/PostbinUltra?display_name=tag&sort=semver)](https://github.com/MPJHorner/PostbinUltra/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
