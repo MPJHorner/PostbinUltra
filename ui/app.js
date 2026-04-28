@@ -49,6 +49,7 @@
     });
 
     $('#help-close')?.addEventListener('click', () => $('#help-dialog').close());
+    $('#shortcuts-btn')?.addEventListener('click', () => $('#help-dialog').showModal());
 
     document.addEventListener('keydown', onKeydown);
   }
@@ -273,14 +274,14 @@
       try {
         const parsed = JSON.parse(bodyText);
         pane.appendChild(jsonTree(parsed));
-        pane.appendChild(downloadRow(r));
+        pane.appendChild(downloadRow(r, () => JSON.stringify(parsed, null, 2)));
         return;
       } catch {}
     }
 
     if (ctLow.includes('application/x-www-form-urlencoded')) {
       pane.appendChild(kvTable(parseFormEncoded(bodyText)));
-      pane.appendChild(downloadRow(r));
+      pane.appendChild(downloadRow(r, bodyText));
       return;
     }
 
@@ -289,6 +290,7 @@
       img.className = 'image-preview';
       img.src = bytesToObjectUrl(bytes, ct);
       pane.appendChild(img);
+      // Binary image — no copy button, just the download link.
       pane.appendChild(downloadRow(r));
       return;
     }
@@ -303,11 +305,12 @@
       pre.className = 'text-block';
       pre.textContent = bodyText;
       pane.appendChild(pre);
-      pane.appendChild(downloadRow(r));
+      pane.appendChild(downloadRow(r, bodyText));
       return;
     }
 
     pane.appendChild(hexView(bytes));
+    // Hex view: skip copy. The "Download raw body" link is the right exit.
     pane.appendChild(downloadRow(r));
   }
 
@@ -334,9 +337,25 @@
     return wrap;
   }
 
-  function downloadRow(r) {
+  /**
+   * Action row at the bottom-right of a body pane. Always renders a download
+   * link; if `copyText` is provided (a string or a () => string thunk), also
+   * renders a Copy button. Binary bodies omit the copy button.
+   */
+  function downloadRow(r, copyText) {
     const row = document.createElement('div');
     row.className = 'copy-row';
+    if (copyText) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-ghost';
+      btn.textContent = 'Copy body';
+      btn.addEventListener('click', () => {
+        const text = typeof copyText === 'function' ? copyText() : copyText;
+        copy(text, 'Body copied');
+      });
+      row.appendChild(btn);
+    }
     const dl = document.createElement('a');
     dl.className = 'btn btn-ghost';
     dl.href = `/api/requests/${r.id}/raw`;
@@ -369,6 +388,11 @@
       tbl.appendChild(tr);
     }
     pane.appendChild(tbl);
+    pane.appendChild(
+      copyButton('Copy headers', () =>
+        r.headers.map(([k, v]) => `${k}: ${v}`).join('\n')
+      )
+    );
   }
 
   function renderQuery(r) {
@@ -385,6 +409,7 @@
     const rows = [];
     for (const [k, v] of params) rows.push([k, v]);
     pane.appendChild(kvTable(rows));
+    pane.appendChild(copyButton('Copy query', () => r.query));
   }
 
   function renderRaw(r) {
@@ -542,6 +567,8 @@
       if (e.key === 'Escape') e.target.blur();
       return;
     }
+    // Never hijack browser/OS shortcuts (cmd+c, ctrl+r, alt+left, …).
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
     switch (e.key) {
       case 'j':
       case 'ArrowDown':
@@ -566,7 +593,7 @@
       case 'p':
         togglePause();
         break;
-      case 'c':
+      case 'X':
         confirmClear();
         break;
       case 't':

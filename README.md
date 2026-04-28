@@ -186,9 +186,10 @@ What you get:
 - Two-pane layout: scrollable request list on the left, full detail on the right.
 - Tabs: Body, Headers, Query, Raw, Replay.
 - Body formatters: JSON (collapsible, highlighted), form-encoded (table), multipart, `text/*` (line-numbered), `image/*` (inline preview), anything else (hex dump with ASCII gutter).
-- Keyboard shortcuts (press `?` to view):
+- Keyboard shortcuts (click the Shortcuts button in the top bar, or press `?`):
   - `j` / `k` next / previous, `g` / `G` newest / oldest, `/` focus search
-  - `1` to `5` switch tabs, `p` pause, `c` clear, `t` theme, `?` help
+  - `1` to `5` switch tabs, `p` pause, `Shift` + `X` clear, `t` theme, `?` help
+  - Modifier keys (`⌘` / `Ctrl` / `Alt`) are never intercepted, so `⌘`+`C` still copies
 - Theme toggle, dark by default, light mode available, remembered in `localStorage`.
 - Pause to freeze the list during a noisy run.
 - Replay to re-issue any captured request to a target URL of your choice (browser CORS rules apply).

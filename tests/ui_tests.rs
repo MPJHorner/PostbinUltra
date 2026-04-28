@@ -263,6 +263,58 @@ async fn static_assets_served() {
 }
 
 #[tokio::test]
+async fn ui_html_advertises_shortcuts_button_and_uses_shift_x_for_clear() {
+    let store = RequestStore::new(10);
+    let addr = spawn(store).await;
+    let body = client()
+        .get(format!("http://{addr}/"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(
+        body.contains(r#"id="shortcuts-btn""#),
+        "topbar shortcuts button missing from index.html"
+    );
+    assert!(
+        body.contains("Shift + X") || body.contains("Shift</kbd> + <kbd>X"),
+        "help dialog should advertise Shift+X for clear"
+    );
+    assert!(
+        !body.contains(r#"<kbd>c</kbd></td><td>Clear all"#),
+        "old `c` shortcut for clear must be removed"
+    );
+}
+
+#[tokio::test]
+async fn ui_js_skips_shortcuts_when_modifier_held_and_uses_shift_x_for_clear() {
+    let store = RequestStore::new(10);
+    let addr = spawn(store).await;
+    let body = client()
+        .get(format!("http://{addr}/app.js"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    assert!(
+        body.contains("e.metaKey || e.ctrlKey || e.altKey"),
+        "keydown handler must bail when a modifier key is held"
+    );
+    assert!(
+        body.contains("case 'X':"),
+        "clear-all must be bound to Shift+X (case 'X')"
+    );
+    assert!(
+        !body.contains("case 'c':"),
+        "old `c` shortcut for clear must be gone"
+    );
+}
+
+#[tokio::test]
 async fn static_asset_unknown_path_404() {
     let store = RequestStore::new(10);
     let addr = spawn(store).await;

@@ -41,7 +41,11 @@
       <button class="btn btn-ghost" id="theme-toggle" title="Toggle theme (T)">
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M8 1.5a6.5 6.5 0 1 0 6.4 5.4 5.5 5.5 0 0 1-6.9-6.9A6.6 6.6 0 0 0 8 1.5Z"/></svg>
       </button>
-      <button class="btn btn-danger" id="clear-btn" title="Clear all (C)">
+      <button class="btn btn-ghost shortcuts-btn" id="shortcuts-btn" title="Keyboard shortcuts (?)" aria-label="Show keyboard shortcuts">
+        <kbd class="shortcuts-key">⌘</kbd>
+        <span class="btn-label">Shortcuts</span>
+      </button>
+      <button class="btn btn-danger" id="clear-btn" title="Clear all (Shift + X)">
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M6 2h4l1 1h3v2H2V3h3l1-1Zm-3 4h10l-1 8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2L3 6Z"/></svg>
         <span class="btn-label">Clear</span>
       </button>
@@ -112,11 +116,12 @@
       <tr><td><kbd>/</kbd></td><td>Focus search</td></tr>
       <tr><td><kbd>1</kbd>–<kbd>5</kbd></td><td>Switch tabs</td></tr>
       <tr><td><kbd>p</kbd></td><td>Pause / resume capture display</td></tr>
-      <tr><td><kbd>c</kbd></td><td>Clear all</td></tr>
+      <tr><td><kbd>Shift</kbd> + <kbd>X</kbd></td><td>Clear all</td></tr>
       <tr><td><kbd>t</kbd></td><td>Toggle theme</td></tr>
       <tr><td><kbd>?</kbd></td><td>Show this help</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>Close dialog / blur search</td></tr>
     </table>
+    <p class="help-note">Modifier keys (⌘ / Ctrl / Alt) are never intercepted, so <kbd>⌘</kbd>+<kbd>C</kbd> still copies and <kbd>⌘</kbd>+<kbd>R</kbd> still reloads.</p>
     <button class="btn btn-ghost" id="help-close">Close</button>
   </dialog>
 
