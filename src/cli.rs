@@ -57,6 +57,19 @@ pub struct Cli {
     /// Skip the startup check that asks GitHub if a newer release is available.
     #[arg(long)]
     pub no_update_check: bool,
+
+    /// Forward each captured request to URL and return the upstream response
+    /// to the original caller. Path and query are appended to URL.
+    #[arg(long, value_name = "URL")]
+    pub forward: Option<String>,
+
+    /// Per-request timeout in seconds when forwarding upstream.
+    #[arg(long, default_value_t = 30)]
+    pub forward_timeout: u64,
+
+    /// Skip TLS certificate verification when forwarding (dev/staging only).
+    #[arg(long)]
+    pub forward_insecure: bool,
 }
 
 impl Cli {
@@ -77,6 +90,21 @@ impl Cli {
         }
         if self.buffer_size == 0 {
             return Err("--buffer-size must be > 0".into());
+        }
+        if let Some(url) = &self.forward {
+            let parsed =
+                url::Url::parse(url).map_err(|e| format!("invalid --forward URL '{url}': {e}"))?;
+            match parsed.scheme() {
+                "http" | "https" => {}
+                other => {
+                    return Err(format!(
+                        "--forward URL must use http or https, got '{other}'"
+                    ))
+                }
+            }
+        }
+        if self.forward_timeout == 0 {
+            return Err("--forward-timeout must be > 0".into());
         }
         Ok(())
     }
@@ -185,5 +213,34 @@ mod tests {
     fn cli_is_clone() {
         let cli = parse(&[]);
         let _cloned = cli.clone();
+    }
+
+    #[test]
+    fn forward_accepts_http_and_https() {
+        for url in ["http://api.example.com", "https://api.example.com/v2"] {
+            let cli = parse(&["--forward", url]);
+            cli.validate().expect(url);
+        }
+    }
+
+    #[test]
+    fn forward_rejects_invalid_url() {
+        let cli = parse(&["--forward", "not-a-url"]);
+        let err = cli.validate().unwrap_err();
+        assert!(err.contains("invalid --forward URL"));
+    }
+
+    #[test]
+    fn forward_rejects_non_http_scheme() {
+        let cli = parse(&["--forward", "ftp://example.com"]);
+        let err = cli.validate().unwrap_err();
+        assert!(err.contains("must use http or https"));
+    }
+
+    #[test]
+    fn forward_timeout_zero_rejected() {
+        let cli = parse(&["--forward-timeout", "0"]);
+        let err = cli.validate().unwrap_err();
+        assert!(err.contains("forward-timeout"));
     }
 }

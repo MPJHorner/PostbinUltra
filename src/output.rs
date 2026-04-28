@@ -175,6 +175,19 @@ impl Printer {
         buffer: usize,
         max_body: usize,
     ) {
+        self.print_banner_with_forward(capture_url, ui_url, buffer, max_body, None)
+    }
+
+    /// Banner variant that includes a `Forward` line when proxy mode is on.
+    /// `forward` is `(target_url, timeout_secs, insecure)`.
+    pub fn print_banner_with_forward(
+        &self,
+        capture_url: &str,
+        ui_url: Option<&str>,
+        buffer: usize,
+        max_body: usize,
+        forward: Option<(&str, u64, bool)>,
+    ) {
         if self.opts.json_mode || self.opts.quiet {
             return;
         }
@@ -206,6 +219,19 @@ impl Printer {
                 buffer,
                 max
             ));
+            if let Some((target, timeout_secs, insecure)) = forward {
+                let suffix = if insecure {
+                    format!("(timeout {timeout_secs}s, insecure)")
+                } else {
+                    format!("(timeout {timeout_secs}s)")
+                };
+                self.write_line(&format!(
+                    "    {}  -> {}  {}",
+                    "Forward".bright_black(),
+                    target.bright_white().underline(),
+                    suffix.dimmed()
+                ));
+            }
             self.write_line("");
             self.write_line(&format!(
                 "  {}",
@@ -222,6 +248,14 @@ impl Printer {
                 self.write_line(&format!("    Web UI   {u}"));
             }
             self.write_line(&format!("    Buffer   {buffer} requests · {max} max body"));
+            if let Some((target, timeout_secs, insecure)) = forward {
+                let suffix = if insecure {
+                    format!("(timeout {timeout_secs}s, insecure)")
+                } else {
+                    format!("(timeout {timeout_secs}s)")
+                };
+                self.write_line(&format!("    Forward  -> {target}  {suffix}"));
+            }
             self.write_line("");
             self.write_line("  Waiting for requests… (Ctrl+C to quit)");
             self.write_line("");

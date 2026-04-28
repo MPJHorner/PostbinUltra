@@ -1,10 +1,11 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::{
     body::Body,
     extract::{ConnectInfo, Request, State},
-    http::{HeaderValue, StatusCode},
+    http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode},
     response::{IntoResponse, Json, Response},
     Router,
 };
@@ -21,12 +22,44 @@ use crate::{request::CapturedRequest, store::RequestStore};
 #[derive(Clone, Debug)]
 pub struct CaptureConfig {
     pub max_body_size: usize,
+    pub forward: Option<ForwardConfig>,
+}
+
+/// Configuration for proxy mode. Built once at startup; the inner
+/// [`reqwest::Client`] is reused for the connection pool.
+#[derive(Clone, Debug)]
+pub struct ForwardConfig {
+    /// Upstream base URL with any trailing slash already stripped from its path
+    /// component. Incoming `path` and `query` are concatenated onto it.
+    pub base: url::Url,
+    pub timeout: Duration,
+    pub client: reqwest::Client,
+}
+
+impl ForwardConfig {
+    pub fn build(url: url::Url, timeout: Duration, insecure: bool) -> Result<Self, String> {
+        let client = reqwest::Client::builder()
+            .timeout(timeout)
+            .danger_accept_invalid_certs(insecure)
+            .build()
+            .map_err(|e| format!("building forward HTTP client: {e}"))?;
+        // Note: we deliberately do NOT call `base.set_path(...)` to strip a
+        // trailing slash. The `url` crate re-normalises an empty path back to
+        // "/", which would re-introduce the slash we just removed. Path joins
+        // happen in `forward_request` against `base.path().trim_end_matches('/')`.
+        Ok(Self {
+            base: url,
+            timeout,
+            client,
+        })
+    }
 }
 
 impl Default for CaptureConfig {
     fn default() -> Self {
         Self {
             max_body_size: 10 * 1024 * 1024,
+            forward: None,
         }
     }
 }
@@ -55,12 +88,12 @@ async fn handle(
 ) -> Response {
     let (parts, body) = req.into_parts();
 
-    let method = parts.method.to_string();
+    let method = parts.method.clone();
+    let original_headers = parts.headers.clone();
     let path = parts.uri.path().to_string();
     let query = parts.uri.query().unwrap_or("").to_string();
     let version = format!("{:?}", parts.version);
-    let headers: Vec<(String, String)> = parts
-        .headers
+    let headers: Vec<(String, String)> = original_headers
         .iter()
         .map(|(k, v)| {
             (
@@ -76,25 +109,41 @@ async fn handle(
     let captured = CapturedRequest {
         id: Uuid::new_v4(),
         received_at: Utc::now(),
-        method,
-        path,
-        query,
+        method: method.to_string(),
+        path: path.clone(),
+        query: query.clone(),
         version,
         remote_addr: addr.to_string(),
         headers,
-        body: body_bytes,
+        body: body_bytes.clone(),
         body_truncated,
         body_bytes_received,
     };
-
-    let resp = json!({
-        "id": captured.id.to_string(),
-        "received_at": captured.received_at.to_rfc3339(),
-        "body_truncated": captured.body_truncated,
-        "body_bytes_received": captured.body_bytes_received,
-    });
+    let captured_id = captured.id;
 
     state.store.push(captured);
+
+    if let Some(forward) = state.config.forward.as_ref() {
+        return forward_request(
+            forward,
+            captured_id,
+            method,
+            &path,
+            &query,
+            &original_headers,
+            addr,
+            body_bytes,
+            body_truncated,
+        )
+        .await;
+    }
+
+    let resp = json!({
+        "id": captured_id.to_string(),
+        "received_at": Utc::now().to_rfc3339(),
+        "body_truncated": body_truncated,
+        "body_bytes_received": body_bytes_received,
+    });
 
     let mut response = (StatusCode::OK, Json(resp)).into_response();
     let h = response.headers_mut();
@@ -108,6 +157,134 @@ async fn handle(
         HeaderValue::from_static("*"),
     );
     response
+}
+
+/// Hop-by-hop headers (RFC 7230 §6.1) plus `host` and `content-length`. These
+/// must not be passed verbatim through a proxy: `host` is set by the URL,
+/// `content-length` is set by the body length, and the rest are connection-
+/// scoped and would confuse the upstream (or downstream) endpoint.
+const STRIP_HEADERS: &[&str] = &[
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailer",
+    "trailers",
+    "transfer-encoding",
+    "upgrade",
+    "host",
+    "content-length",
+];
+
+fn is_strip_header(name: &str) -> bool {
+    STRIP_HEADERS.iter().any(|s| s.eq_ignore_ascii_case(name))
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn forward_request(
+    forward: &ForwardConfig,
+    captured_id: Uuid,
+    method: Method,
+    path: &str,
+    query: &str,
+    original_headers: &HeaderMap,
+    remote_addr: SocketAddr,
+    body: Bytes,
+    body_truncated: bool,
+) -> Response {
+    if body_truncated {
+        tracing::warn!(
+            captured_id = %captured_id,
+            "refusing to forward request with truncated body"
+        );
+        return forward_error_response(
+            "forward_skipped_truncated_body",
+            "captured body exceeded --max-body-size and forwarding was skipped to avoid corrupting the upstream view of the request",
+            captured_id,
+        );
+    }
+
+    // Compose the upstream URL by appending the incoming path (which always
+    // starts with `/`) to the forward base, after stripping any trailing
+    // slash from the base path so we never double up.
+    let mut url = forward.base.clone();
+    let base_path = forward.base.path().trim_end_matches('/');
+    url.set_path(&format!("{base_path}{path}"));
+    url.set_query(if query.is_empty() { None } else { Some(query) });
+
+    // Filter incoming headers: pass everything through except hop-by-hop and
+    // headers reqwest will manage itself.
+    let mut req_headers = HeaderMap::with_capacity(original_headers.len());
+    for (name, value) in original_headers.iter() {
+        if !is_strip_header(name.as_str()) {
+            req_headers.append(name.clone(), value.clone());
+        }
+    }
+    let host_value = original_headers
+        .get(axum::http::header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_string);
+    let xff = original_headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .map(|existing| format!("{existing}, {}", remote_addr.ip()))
+        .unwrap_or_else(|| remote_addr.ip().to_string());
+    if let Ok(v) = HeaderValue::from_str(&xff) {
+        req_headers.insert(HeaderName::from_static("x-forwarded-for"), v);
+    }
+    if let Some(host) = host_value {
+        if let Ok(v) = HeaderValue::from_str(&host) {
+            req_headers.insert(HeaderName::from_static("x-forwarded-host"), v);
+        }
+    }
+    req_headers.insert(
+        HeaderName::from_static("x-forwarded-proto"),
+        HeaderValue::from_static("http"),
+    );
+
+    let upstream = forward
+        .client
+        .request(method, url.clone())
+        .headers(req_headers)
+        .body(body)
+        .send()
+        .await;
+
+    let response = match upstream {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!(captured_id = %captured_id, error = %e, "forward upstream failed");
+            return forward_error_response("forward_failed", &e.to_string(), captured_id);
+        }
+    };
+
+    let status =
+        StatusCode::from_u16(response.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+
+    let mut out_headers = HeaderMap::with_capacity(response.headers().len());
+    for (name, value) in response.headers().iter() {
+        if !is_strip_header(name.as_str()) {
+            out_headers.append(name.clone(), value.clone());
+        }
+    }
+
+    let stream = response.bytes_stream();
+    let body = Body::from_stream(stream);
+
+    let mut out = Response::new(body);
+    *out.status_mut() = status;
+    *out.headers_mut() = out_headers;
+    out
+}
+
+fn forward_error_response(error: &str, reason: &str, captured_id: Uuid) -> Response {
+    let body = json!({
+        "error": error,
+        "reason": reason,
+        "captured_id": captured_id.to_string(),
+    });
+    (StatusCode::BAD_GATEWAY, Json(body)).into_response()
 }
 
 /// Streams the body and stops storing data after `limit` bytes, but keeps

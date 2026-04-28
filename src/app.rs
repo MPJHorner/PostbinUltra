@@ -39,8 +39,10 @@ async fn bind_with_fallback(bind: IpAddr, port: u16) -> io::Result<TcpListener> 
     Err(last_err.unwrap_or_else(|| io::Error::other("no free port found in fallback range")))
 }
 
+use std::time::Duration;
+
 use crate::{
-    capture::{self, CaptureConfig},
+    capture::{self, CaptureConfig, ForwardConfig},
     cli::Cli,
     output::{Printer, PrinterOptions},
     store::{RequestStore, StoreEvent},
@@ -84,10 +86,29 @@ pub async fn start(cli: &Cli, printer: Printer) -> Result<Running> {
     if cli.port != 0 && capture_addr.port() != cli.port {
         printer.print_port_fallback("capture", cli.port, capture_addr.port());
     }
+    let forward = match cli.forward.as_deref() {
+        Some(raw) => {
+            let parsed = url::Url::parse(raw).context("parsing --forward URL")?;
+            let timeout = Duration::from_secs(cli.forward_timeout);
+            Some(
+                ForwardConfig::build(parsed, timeout, cli.forward_insecure)
+                    .map_err(anyhow::Error::msg)?,
+            )
+        }
+        None => None,
+    };
+    let forward_banner = forward.as_ref().map(|f| {
+        (
+            f.base.to_string(),
+            f.timeout.as_secs(),
+            cli.forward_insecure,
+        )
+    });
     let capture_router = capture::router(
         store.clone(),
         CaptureConfig {
             max_body_size: cli.max_body_size,
+            forward,
         },
     );
     let capture_task = tokio::spawn(async move {
@@ -116,11 +137,15 @@ pub async fn start(cli: &Cli, printer: Printer) -> Result<Running> {
     // Banner
     let capture_url = format!("http://{}", capture_addr);
     let ui_url = ui_addr.map(|a| format!("http://{}", a));
-    printer.print_banner(
+    let forward_for_banner = forward_banner
+        .as_ref()
+        .map(|(target, timeout, insecure)| (target.as_str(), *timeout, *insecure));
+    printer.print_banner_with_forward(
         &capture_url,
         ui_url.as_deref(),
         cli.buffer_size,
         cli.max_body_size,
+        forward_for_banner,
     );
 
     // CLI printer task — runs unless quiet. (Quiet means: no_cli without json.)

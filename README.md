@@ -134,6 +134,9 @@ postbin-ultra [OPTIONS]
       --json                   Emit each request as JSON (NDJSON) to stdout
       --open                   Open the web UI in your browser on startup
   -v, --verbose                Print headers + body preview for each request
+      --forward <URL>          Proxy each captured request to URL and return upstream's response
+      --forward-timeout <SECS> Per-request forward timeout in seconds [default: 30]
+      --forward-insecure       Skip TLS certificate verification when forwarding
       --update                 Download the latest release and replace this binary, then exit
       --no-update-check        Skip the startup check for newer releases
   -h, --help
@@ -163,7 +166,35 @@ postbin-ultra --update
 
 # Run without contacting GitHub at startup
 postbin-ultra --no-update-check
+
+# Proxy mode: capture every request AND forward it to a real upstream
+postbin-ultra --forward https://api.example.com
 ```
+
+## Forward / proxy mode
+
+Pass `--forward URL` and Postbin Ultra becomes a transparent man-in-the-middle. Every request to the capture port is recorded as usual, then forwarded to the upstream URL with method, path, query, headers, and body intact. The upstream's status, headers, and body are streamed back to the original caller.
+
+```sh
+postbin-ultra --forward https://api.example.com/v2
+```
+
+A request to `POST http://localhost:9000/webhook?x=1` is forwarded as `POST https://api.example.com/v2/webhook?x=1`. The forward base URL's path becomes a prefix.
+
+Headers are passed through, with these adjustments:
+
+- Hop-by-hop headers (`connection`, `keep-alive`, `transfer-encoding`, `upgrade`, `te`, `trailer(s)`, `proxy-authenticate`, `proxy-authorization`) and `host` / `content-length` are stripped before forwarding.
+- `X-Forwarded-For` is set (or appended) with the original caller's IP, `X-Forwarded-Host` carries the original `Host` header, and `X-Forwarded-Proto: http` is added.
+- All other headers, including duplicates such as multi-value `Cookie` chains, pass through verbatim.
+
+If the upstream is unreachable, times out, or returns a TLS error, Postbin Ultra returns `502 Bad Gateway` to the caller with a small JSON body (`{"error":"forward_failed","captured_id":"…"}`). The capture is still recorded so you can inspect what was sent.
+
+If the captured body was truncated by `--max-body-size`, the request is **not** forwarded (returning 502 with `forward_skipped_truncated_body`) — silently sending a truncated body would corrupt the upstream's view of the request. Raise `--max-body-size` to forward larger payloads.
+
+Other knobs:
+
+- `--forward-timeout SECS` (default 30) — per-request timeout for the upstream call.
+- `--forward-insecure` — skip TLS verification, useful for self-signed dev backends.
 
 ## Updates
 

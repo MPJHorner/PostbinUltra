@@ -44,9 +44,10 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 base64 = "0.22"
 http-body-util = "0.1"
 self_update = { version = "0.44", default-features = false, features = ["reqwest", "rustls", "archive-tar", "archive-zip", "compression-flate2"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
+url = "2"
 
 [dev-dependencies]
-reqwest = { version = "0.12", features = ["json", "stream"], default-features = false }
 tokio-test = "0.4"
 pretty_assertions = "1"
 serial_test = "3"
