@@ -2,6 +2,11 @@
 
 All notable changes are recorded here. Postbin Ultra follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.1] - 2026-04-28
+
+### Changed
+- When proxy mode is on, the Replay tab's URL field is prefilled with the upstream that proxy is currently pointing at (path and query joined the same way the proxy does), so a one-click replay sends the captured request straight to the same backend. Edit the URL to send anywhere else.
+
 ## [0.6.0] - 2026-04-28
 
 ### Added

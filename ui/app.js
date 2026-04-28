@@ -127,6 +127,7 @@
       }
       state.forward = await res.json();
       renderForwardChip();
+      renderDetail();
       $('#forward-dialog').close();
       toast('Forward enabled');
     } catch (e) {
@@ -143,6 +144,7 @@
       }
       state.forward = { enabled: false, url: null, timeout_secs: 30, insecure: false };
       renderForwardChip();
+      renderDetail();
       $('#forward-dialog').close();
       toast('Forward disabled');
     } catch (e) {
@@ -160,6 +162,21 @@
       e.textContent = '';
       e.hidden = true;
     }
+  }
+
+  /** Mirror of the server-side path-prefix join in `forward_request`. */
+  function composeForwardUrl(forwardUrl, path, query) {
+    if (!forwardUrl) return null;
+    let u;
+    try {
+      u = new URL(forwardUrl);
+    } catch {
+      return null;
+    }
+    const basePath = (u.pathname || '').replace(/\/+$/, '');
+    u.pathname = basePath + (path || '');
+    u.search = query ? '?' + query : '';
+    return u.toString();
   }
 
   // ───────── data ─────────
@@ -565,7 +582,12 @@
     const intro = document.createElement('p');
     intro.style.color = 'var(--text-muted)';
     intro.style.margin = '0 0 12px';
-    intro.textContent = 'Replay this captured request to a target URL. Browser CORS rules apply.';
+    const proxyUrl = state.forward && state.forward.enabled
+      ? composeForwardUrl(state.forward.url, r.path, r.query)
+      : null;
+    intro.textContent = proxyUrl
+      ? 'Replay this captured request. Prefilled from the current proxy upstream — edit to send anywhere else.'
+      : 'Replay this captured request to a target URL. Browser CORS rules apply.';
     pane.appendChild(intro);
 
     const form = document.createElement('div');
@@ -574,7 +596,7 @@
     const urlInput = document.createElement('input');
     urlInput.type = 'url';
     urlInput.placeholder = 'https://example.com' + r.path + (r.query ? '?' + r.query : '');
-    urlInput.value = state.lastReplayUrl || '';
+    urlInput.value = proxyUrl || state.lastReplayUrl || '';
     form.appendChild(urlInput);
 
     const btn = document.createElement('button');
