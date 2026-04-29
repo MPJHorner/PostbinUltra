@@ -86,11 +86,16 @@ case "$os" in
         fi
 
         say "==> Installing PostbinUltra.app to ${install_dir}"
+        # macOS `cp -R src dst/` only puts `src` as `dst/src` when `dst` is an
+        # existing directory. If we created the install dir on the fly (rare —
+        # /Applications always exists), the cp would instead make `dst` a copy
+        # of src's contents. Guard with mkdir -p.
+        mkdir -p "${install_dir}"
         if [[ -d "${install_dir}/PostbinUltra.app" ]]; then
             note "    Removing existing ${install_dir}/PostbinUltra.app"
             rm -rf "${install_dir}/PostbinUltra.app"
         fi
-        cp -R "${mountpoint}/PostbinUltra.app" "${install_dir}/"
+        cp -R "${mountpoint}/PostbinUltra.app" "${install_dir}/PostbinUltra.app"
         hdiutil detach -quiet "${mountpoint}"
 
         # Clear quarantine so Gatekeeper doesn't block the launch.
