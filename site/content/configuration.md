@@ -1,51 +1,85 @@
 ---
 title: "Configuration"
-description: "All Postbin Ultra flags, environment variables, and defaults in a single reference table."
+description: "Every Postbin Ultra setting tab and field, with defaults and platform-specific paths for the settings file."
 slug: "configuration"
 ---
 
 # Configuration
 
-Every knob in one place. For flag-by-flag examples and validation rules, see the [CLI reference]({{base}}/cli/).
+Postbin Ultra is configured entirely through the in-app Settings dialog (open with **,** or click the cog in the top bar). Settings are persisted as JSON in a platform-standard config directory and applied on Save without restarting the capture server.
 
-## Flags
+## Settings file
 
-| Flag | Default | Notes |
+| Platform | Path |
+| --- | --- |
+| macOS | `~/Library/Application Support/PostbinUltra/settings.json` |
+| Linux | `$XDG_CONFIG_HOME/postbin-ultra/settings.json` (defaults to `~/.config/postbin-ultra/settings.json`) |
+| Windows | `%APPDATA%\PostbinUltra\settings.json` |
+
+The file is written atomically — Postbin writes to a sibling `.tmp` and renames into place, so a crash mid-write never leaves you with a half-written file. Missing or unreadable file → defaults are used and the file is recreated on next Save. Unknown fields (e.g. `ui_port` from pre-2.0 installs) are silently dropped.
+
+## Settings → Capture
+
+| Field | Default | Notes |
 | --- | --- | --- |
-| `--port` | 9000 | Capture port. If busy, walks up to +50 looking for a free port. Pass `0` for an OS-assigned ephemeral port. |
-| `--ui-port` | 9001 | Web UI port. Same auto-fallback behavior as `--port`. |
-| `--bind` | `127.0.0.1` | Bind address for both servers. Set to `0.0.0.0` for external access. |
-| `--max-body-size` | 10 MiB (`10485760`) | Bodies above this are truncated. The captured request still records the original byte count and is marked `body_truncated`. Truncated bodies are not forwarded, proxy mode returns 502. |
-| `--buffer-size` | 1000 | Number of recent requests held in memory. Older requests are dropped. |
-| `--no-ui` | off | Disable the web UI server. |
-| `--no-cli` | off | Disable colour CLI output. Mutually exclusive with `--json`. |
-| `--json` | off | Emit each request as NDJSON to stdout. |
-| `--open` | off | Open the web UI in the default browser on startup. |
-| `--verbose` | off | Headers and body preview in the terminal. |
-| `--forward <URL>` | off | Transparent proxy mode. See [Proxy]({{base}}/proxy/). |
-| `--forward-timeout` | 30 | Per-request upstream timeout in seconds. |
-| `--forward-insecure` | off | Skip TLS verification when forwarding. Dev only. |
-| `--log-file <FILE>` | off | Append captures as NDJSON to FILE. |
-| `--update` | off | Self-update from the latest GitHub release, then exit. |
-| `--no-update-check` | off | Skip the silent startup version check. |
+| **Bind address** | `127.0.0.1` | IP the capture server listens on. `0.0.0.0` to accept from anywhere on the network — only do this on a trusted LAN. |
+| **Port** | `9000` | TCP port. The supervisor walks up to 50 ports looking for the next free one if this is busy; the actual bound port is shown in the top bar. `0` means "any free port." |
+| **Buffer (requests)** | `1000` | Bounded ring buffer size. Once full, the oldest request is evicted. Larger values use more RAM but let you scroll back further. |
+| **Max body size** | `10485760` (10 MiB) | Bodies larger than this are truncated. Truncated bodies show a `[truncated]` warning in the row and the detail header; forwarding is skipped to avoid corrupting upstream's view. |
 
-## Environment
+Saving Bind / Port reconfigures the running capture server in place — no restart needed.
 
-| Variable | Default | Notes |
+## Settings → Forward
+
+| Field | Default | Notes |
 | --- | --- | --- |
-| `RUST_LOG` | `warn,postbin_ultra=info` | Standard `tracing-subscriber` env filter. Set to `debug` while developing. |
-| `NO_COLOR` | unset | When set (any value): disables ANSI colour in the CLI output. Honoured automatically. |
+| **Forward each captured request upstream** | off | Master toggle for proxy mode. When on, every captured request is also relayed to the upstream and the upstream's response is shown back to the client. |
+| **Upstream URL** | — | The base URL. Captured request's path + query are appended. |
+| **Timeout** | `30` s | Per-request timeout for the upstream. |
+| **Skip TLS verification (dev only)** | off | Accept self-signed certs. |
 
-## Memory model
+Full guide: [Forward + replay]({{base}}/forward/).
 
-Bodies and the buffer live in **RAM only**. Restart the binary and history starts fresh. Persistent capture history is the job of `--log-file`, which writes NDJSON to disk for as long as you want it.
+## Settings → Appearance
 
-The buffer is a fixed-size ring, once it's full, new requests evict the oldest. Default 1000 requests; raise it with `--buffer-size`. The body cap protects against a single huge upload eating all your memory; raise it with `--max-body-size` if you genuinely need to capture multi-megabyte payloads.
+Three big tappable cards:
 
-## Port-clash behaviour
+- **System** — follows the OS appearance (default)
+- **Dark** — the lavender-on-near-black brand theme
+- **Light** — same palette, light surfaces
 
-By default both servers fall back to the next free port up to +50 if the requested port is in use. The startup banner prints what it actually bound, so you always know where to send traffic.
+Theme also cycles with **t** when no input has focus.
 
-If you need deterministic ports (in CI, in a Docker compose, behind a reverse proxy): pin them explicitly with `-p` and `-u`. Postbin Ultra will exit with a non-zero status if it can't bind to any port in the range.
+## Settings → Advanced
 
-Capture port and UI port can both be `0` (OS-assigned) without clashing. They cannot share an explicit non-zero port.
+| Field | Default | Notes |
+| --- | --- | --- |
+| **Log file** | (none) | Path to a file Postbin appends every captured request to as JSON-lines (one request per line). Useful for piping captures into another tool or feeding them to a coding agent watching alongside you. |
+| **Skip update check on startup** | off | When off, Postbin makes a single GitHub API call at launch to look for newer releases. Off-by-default since the call is best-effort and silently swallows any failure. |
+| **Check for updates** | (button) | Manual check on demand — opens the release page in your browser if a newer version exists. |
+
+## Hot-reload semantics
+
+Most fields take effect immediately on Save:
+
+- Bind / Port → capture server is rebound
+- Buffer size → next captured request observes the new size; existing buffer entries are kept
+- Max body size → applies to next captured request
+- Forward fields → applies to next captured request (both live forward and Replay)
+- Theme → repaint on next frame
+
+The settings file is rewritten atomically on every Save.
+
+## Resetting
+
+**Reset to defaults** in the Settings dialog wipes every field back to the table above. Cancel discards your in-flight edits. There's no undo on Save — the previous settings are overwritten.
+
+## Per-request size budget
+
+Captured requests live in RAM in a `Vec<CapturedRequest>` capped at the **Buffer (requests)** size. A naive upper-bound on memory is `buffer_size × max_body_size + headers`. With defaults that's 1000 × 10 MiB = 10 GiB worst case, but real workloads usually average a fraction of max body. Adjust both knobs to suit.
+
+## Next
+
+- [Forward + replay]({{base}}/forward/) — the full forward setup walkthrough
+- [Logging]({{base}}/logging/) — the JSON-lines log file format
+- [Use cases]({{base}}/use-cases/) — what to actually do with the captures

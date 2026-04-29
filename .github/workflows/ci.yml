@@ -30,7 +30,7 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
   test:
     name: test (${{ matrix.os }})
@@ -43,6 +43,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Install Linux deps
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libxkbcommon-dev libfontconfig1-dev libwayland-dev
       - run: cargo build --all-targets
       - run: cargo test --all-features
 
@@ -55,13 +60,17 @@ jobs:
         with:
           components: llvm-tools-preview
       - uses: Swatinem/rust-cache@v2
+      - name: Install Linux deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libxkbcommon-dev libfontconfig1-dev libwayland-dev
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Run coverage
         run: |
           cargo llvm-cov \
-            --lib --tests \
-            --ignore-filename-regex='src/(main|assets|update|entrypoint)\.rs' \
+            --workspace --lib --tests \
+            --ignore-filename-regex='crates/postbin-ultra-desktop/src/(main|app|widgets|icon|fonts|update)\.rs|tools/.*' \
             --lcov --output-path lcov.info
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
@@ -80,17 +89,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: site/package-lock.json
-      - name: Build binary for --help capture
-        run: cargo build --release --quiet
-      - name: Capture --help output
-        run: ./target/release/postbin-ultra --help > site/cli-help.txt
       - name: Install site deps
         working-directory: site
         run: npm ci

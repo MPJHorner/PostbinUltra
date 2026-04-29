@@ -1,67 +1,101 @@
 ---
 title: "Use cases"
-description: "Real workflows where Postbin Ultra replaces SaaS request bins, ngrok inspect, or one-off Express handlers."
+description: "Real workflows where Postbin Ultra replaces SaaS request bins, ngrok inspect, or one-off Express handlers. Webhook debugging, SDK inspection, replay-against-staging."
 slug: "use-cases"
 ---
 
 # Use cases
 
-Concrete scenarios where Postbin Ultra earns its place in your toolchain.
+A request inspector is one of those tools that is "useful in dozens of ways but pitched in none." Here are the workflows Postbin Ultra is built for.
 
-## Webhook debugging
+## Webhook debugging (Stripe, GitHub, Slack, Twilio, …)
 
-Webhook senders are notoriously hard to debug because the wire format is hidden behind a producer that you don't control. Stripe, GitHub, Shopify, Slack, Twilio, Sentry, and every other webhook producer just expects a 2xx and moves on.
+Vendors send their webhooks with bespoke headers, signature schemes, and JSON shapes. Reading their docs is the slow path; capturing one real request and inspecting it is the fast path.
 
-Point any of them at `http://localhost:9000/your-webhook-path` and Postbin Ultra captures the full request: headers, signed body, content type, query, the whole thing. You can then:
+```sh
+# point the vendor sandbox at http://localhost:9000/webhook
+# (use ngrok or Cloudflare Tunnel if the vendor needs a public URL)
+```
 
-- Read the formatted JSON, expand and collapse fields freely.
-- Click "Replay" to re-fire the exact same request to your dev server.
-- Open the Raw tab to copy a `curl` rebuild for sharing in a bug report.
+Postbin Ultra renders the JSON body as a collapsible tree, the headers as a searchable grid, the query string as a key/value table. The full original request is in the **Raw** tab so you can copy it as `curl` and reproduce it offline.
 
-When you also pass `--forward http://localhost:3000`, your dev server still receives every request. Postbin is just sitting in the middle, watching.
+When you've debugged the handler and want to confirm the production-shaped request actually parses correctly:
 
-## API client / SDK inspection
+1. Set Forward → your local handler URL
+2. Click **Replay** on the captured request
+3. The Forwarded tab shows your handler's response, status code first
 
-When you call a third-party API through an SDK, you rarely see the actual wire format. Generated clients add headers, content-encodings, retry shims, and platform-specific quirks. Sometimes those are the bug.
+Replay until the handler returns 200, then ship.
 
-Set the SDK's base URL to `http://localhost:9000`. Send a request. Open the UI. Now you can see exactly what the SDK serialised, which headers it added, and how it framed the body.
+## SDK inspection — what does the wire actually look like?
 
-Pair this with `--forward https://api.real-thing.com` to keep the SDK behaving normally while you watch.
+Generated SDKs and high-level HTTP clients are great until something looks wrong. Point your code at Postbin instead of the real API:
 
-## Reverse-engineering a third-party integration
+```py
+client = MyApiClient(base_url="http://localhost:9000")
+client.create_user(email="matt@example.com", role="admin")
+```
 
-Sometimes a vendor's webhooks ship without documentation, or with documentation that lies. Point them at Postbin, capture a few real events, and you have a small corpus of ground-truth examples to write against.
+The `POST /users` lands in Postbin with the exact bytes the SDK serialised. Compare to the API docs. Spot the missing header / wrong content-type / unexpected query encoding.
 
-The Raw and Headers tabs are particularly useful here, you can see things like custom signing schemes, proprietary content types, header order, and what the vendor's HTTP client actually does on the wire.
+When you've identified the bug and have a fix, you can keep the SDK pointed at Postbin and turn on Forward to relay every test call to the real API too — Postbin records both the outgoing request and the API's response side-by-side.
 
 ## Replay against staging
 
-A reproducible bug is half the fix. Capture a problem request once, then re-fire it to a staging or local instance from the Replay tab, or curl `/api/requests/{id}/raw` and pipe the bytes wherever you need.
+You captured a real production webhook. Now you want to fire that exact payload at your local dev server, repeatedly, while you debug:
 
-This is also handy for load testing a single edge case: capture once, write a small loop that hits `/api/requests/{id}` and replays.
+1. Set Forward → `http://localhost:3000`
+2. Click **Replay** on the captured request
+3. Dev server returns 500
+4. Make a fix, restart, click **Replay** again
+5. Attempt history table now shows `#1 500` and `#2 200` — you can see exactly which deploy fixed the bug
 
-## AI-assistant pairing
+The Forwarded tab keeps the full upstream response (status + headers + body) for every attempt, so when you're tracking down an intermittent failure ("works 9 times out of 10") you can replay 50 times and see which attempts diverged.
 
-The combination `--forward URL --log-file PATH` is the killer setup when you're coding with Claude Code, Cursor, or another AI assistant and need it to *see* live traffic.
+## Reverse-engineering an undocumented API
+
+Got a partner integration that POSTs you data with no schema? Capture a few real payloads in Postbin, expand the JSON tree to map out the shape, copy the **Raw** tab into a fixture file, write your handler against the fixture.
+
+When the spec changes (it always does), you'll catch it because the new captures will have different keys / types / shapes than the fixture you wrote tests against.
+
+## Sample-requests for development
+
+The repo ships with `scripts/sample-requests.sh` — fires 25 realistic-looking requests at a running Postbin Ultra instance:
 
 ```sh
-postbin-ultra \
-  --forward http://127.0.0.1:3000 \
-  --log-file ./requests.ndjson
+./scripts/sample-requests.sh           # 25 reqs to localhost:9000
+./scripts/sample-requests.sh -p 7777   # custom port
+./scripts/sample-requests.sh -n 100    # 100 reqs (cycles through the set)
+make sample                            # same, via Makefile
 ```
 
-Tell the assistant: "watch `./requests.ndjson` and tell me what's coming in." The assistant reads the structured NDJSON; you keep working; the upstream still gets every request. No copy-pasting curl traces, no screenshotting the bin, no narrating headers from memory.
+It covers Stripe / GitHub / Slack / SendGrid webhook shapes, JWT-authed JSON CRUD, multipart uploads (text + PNG), raw JPEG PUT, SOAP XML, GraphQL, CSV import, plain-text logs, HTML render, Twilio-style SMS form, octet-stream blobs, OPTIONS preflight, HEAD healthcheck. Use it to:
 
-See [Logging]({{base}}/logging/) for the full pattern.
+- Stress-test the UI with a wide variety of content types
+- Demo Postbin to teammates without setting up a real upstream
+- Smoke-test your changes when contributing to Postbin itself
 
 ## Learning HTTP
 
-If you're teaching or learning HTTP, Postbin Ultra is a friendlier surface than `tcpdump` or `mitmproxy`. The body formatters explain content types visually; the Raw tab shows the message exactly as it went over the wire; the headers table preserves duplicate names and order so you can talk about real protocol quirks.
+If you're new to HTTP, send `curl` requests at Postbin and click around. Headers, query strings, multipart forms, content encodings, the difference between `application/json` and `application/x-www-form-urlencoded` — all rendered in a way you can actually read. Try the **Raw** tab to see the full text-format request as it would appear on the wire.
 
-It's also a clean way to demonstrate `Set-Cookie` chains, multipart boundaries, content-encoding negotiation, or why cURL's `-d` flag adds a `Content-Type: application/x-www-form-urlencoded` and `--data-binary` does not.
+## Local testing of internet-facing webhooks
 
-## CI test harness
+Many SaaS webhook senders need a public URL. Pair Postbin with a tunnel:
 
-Pass `--no-ui --json` and Postbin becomes a headless capture daemon you can drive from CI. Spin it up, point your code at it, run your assertions against the captured NDJSON. Tear it down with the test.
+```
+Stripe webhook → https://your-name.ngrok.app → http://localhost:9000 (Postbin) → http://localhost:3000 (your app)
+```
 
-Or skip the test infrastructure entirely and just `tail -f` the log file in another job to surface what your code is sending.
+You get the inbound request inspector locally, and when you turn on Forward, your app receives the request as if Stripe had hit it directly. Postbin is invisible in the chain.
+
+## Things Postbin Ultra is **not** for
+
+- **Mocking responses for tests.** Use [wiremock-rs](https://github.com/LukeMathWalker/wiremock-rs), [msw](https://mswjs.io/), or `httptest`. Postbin sends fixed acknowledgements; you can't customise the response.
+- **HTTPS man-in-the-middle.** Use [mitmproxy](https://mitmproxy.org/). Postbin doesn't generate certificates or intercept HTTPS traffic from systems you don't control.
+- **Permanent shared request bins for a team.** Use [webhook.site](https://webhook.site) or self-hosted [RequestBin](https://requestbin.com/). Postbin captures live in RAM and disappear when you close the app.
+
+## Next
+
+- [Forward + replay]({{base}}/forward/) — the workflow most of these use cases hinge on
+- [Quick start]({{base}}/quick-start/) — five minutes from install to first inspection

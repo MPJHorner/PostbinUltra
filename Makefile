@@ -1,4 +1,4 @@
-# PostbinUltra — common developer tasks.
+# Postbin Ultra — common developer tasks.
 # Run `make help` (or just `make`) for the list.
 
 .DEFAULT_GOAL := help
@@ -6,45 +6,34 @@
 # Resolve cargo from PATH, then fall back to the standard rustup install
 # location so `make run` works in shells that haven't sourced ~/.cargo/env.
 CARGO ?= $(shell command -v cargo 2>/dev/null || echo $(HOME)/.cargo/bin/cargo)
-BIN   ?= postbin-ultra
-
-# Override on the CLI: `make run PORT=7777 UI_PORT=7778`.
-# Leave PORT / UI_PORT unset to use the binary's defaults (9000 / 9001 with
-# auto-fallback to the next free port).
-PORT     ?=
-UI_PORT  ?=
-RUN_ARGS ?=
-
-PORT_FLAG    := $(if $(PORT),-p $(PORT),)
-UI_PORT_FLAG := $(if $(UI_PORT),-u $(UI_PORT),)
 
 .PHONY: help
 help: ## Show this help
-	@awk 'BEGIN {FS = ":.*##"; printf "Targets:\n"} /^[a-zA-Z_-]+:.*##/ {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "Targets:\n"} /^[a-zA-Z_-]+:.*##/ {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+# --- Run + build ---------------------------------------------------------
 
 .PHONY: run
-run: ## Run in dev mode (cargo run, no release optimisations)
-	$(CARGO) run -- $(PORT_FLAG) $(UI_PORT_FLAG) $(RUN_ARGS)
-
-.PHONY: run-release
-run-release: release ## Run the release binary (faster startup)
-	./target/release/$(BIN) $(PORT_FLAG) $(UI_PORT_FLAG) $(RUN_ARGS)
+run: ## Run the desktop app in dev mode
+	$(CARGO) run -p postbin-ultra-desktop
 
 .PHONY: build
-build: ## Debug build
-	$(CARGO) build
+build: ## Debug build of all workspace crates
+	$(CARGO) build --workspace
 
 .PHONY: release
-release: ## Optimised release build
-	$(CARGO) build --release
+release: ## Optimised release build of the desktop app
+	$(CARGO) build --release -p postbin-ultra-desktop
+
+# --- Tests + lint --------------------------------------------------------
 
 .PHONY: test
-test: ## Run unit + integration tests
-	$(CARGO) test --all-features
+test: ## Run unit + integration tests across the workspace
+	$(CARGO) test --workspace --all-features
 
 .PHONY: test-watch
 test-watch: ## Re-run tests on file changes (requires cargo-watch)
-	$(CARGO) watch -x 'test --all-features'
+	$(CARGO) watch -x 'test --workspace --all-features'
 
 .PHONY: fmt
 fmt: ## Format code
@@ -56,7 +45,7 @@ fmt-check: ## Verify formatting (CI parity)
 
 .PHONY: clippy
 clippy: ## Run clippy with -D warnings
-	$(CARGO) clippy --all-targets --all-features -- -D warnings
+	$(CARGO) clippy --workspace --all-targets --all-features -- -D warnings
 
 .PHONY: lint
 lint: fmt-check clippy ## fmt-check + clippy (what CI runs)
@@ -64,41 +53,54 @@ lint: fmt-check clippy ## fmt-check + clippy (what CI runs)
 .PHONY: check
 check: lint test ## Lint + test — full pre-commit gate
 
-# Files that are not testable from the lib are excluded from coverage so the
-# number reflects the testable surface, matching what Codecov ignores.
-COVERAGE_IGNORE := src/(main|assets|update|entrypoint)\.rs
+# Files excluded from coverage. Egui-render-only modules can't be exercised
+# without a display server; main / icon / fonts / update are asset/network
+# glue. The pure-data layer is fully tested.
+COVERAGE_IGNORE := crates/postbin-ultra-desktop/src/(main|app|widgets|icon|fonts|update)\.rs|tools/.*
 
 .PHONY: coverage
 coverage: ## Line coverage summary via cargo-llvm-cov (matches CI exclusions)
-	$(CARGO) llvm-cov --lib --tests \
+	$(CARGO) llvm-cov --workspace --lib --tests \
 		--ignore-filename-regex='$(COVERAGE_IGNORE)' \
 		--summary-only
 
 .PHONY: coverage-html
 coverage-html: ## HTML coverage report at target/llvm-cov/html/index.html
-	$(CARGO) llvm-cov --lib --tests \
+	$(CARGO) llvm-cov --workspace --lib --tests \
 		--ignore-filename-regex='$(COVERAGE_IGNORE)' \
 		--html
-
-.PHONY: install
-install: ## Install the binary into ~/.cargo/bin
-	$(CARGO) install --path .
 
 .PHONY: clean
 clean: ## Remove build artifacts
 	$(CARGO) clean
 	rm -f lcov.info
 
-SMOKE_PORT    := $(or $(PORT),9000)
-SMOKE_UI_PORT := $(or $(UI_PORT),9001)
+# --- Desktop bundling (macOS) -------------------------------------------
 
-.PHONY: smoke
-smoke: release ## Quick end-to-end smoke test against a fresh release binary
-	@./target/release/$(BIN) -p $(SMOKE_PORT) -u $(SMOKE_UI_PORT) --no-cli > /tmp/pbu-smoke.log 2>&1 & echo $$! > /tmp/pbu-smoke.pid
-	@sleep 1
-	@echo "→ POST  /smoke"
-	@curl -sS -X POST http://127.0.0.1:$(SMOKE_PORT)/smoke -H 'content-type: application/json' -d '{"ok":true}' && echo
-	@echo "→ /api/requests"
-	@curl -sS http://127.0.0.1:$(SMOKE_UI_PORT)/api/requests | head -c 200; echo
-	@kill $$(cat /tmp/pbu-smoke.pid); rm -f /tmp/pbu-smoke.pid /tmp/pbu-smoke.log
-	@echo "smoke OK"
+.PHONY: desktop-icons
+desktop-icons: ## Re-render the .app icon set + AppIcon.icns
+	$(CARGO) run -p icon-gen
+	iconutil -c icns crates/postbin-ultra-desktop/assets/icons/AppIcon.iconset \
+		-o crates/postbin-ultra-desktop/assets/icons/AppIcon.icns
+
+.PHONY: desktop-bundle
+desktop-bundle: release ## Build target/bundle/PostbinUltra.app + .dmg (macOS only)
+	CARGO=$(CARGO) ./scripts/bundle-mac.sh --skip-build
+
+# --- Sample traffic -----------------------------------------------------
+
+# `make sample` fires a varied batch of realistic-looking requests at a
+# running capture server. Override port or target URL on the CLI:
+#   make sample SAMPLE_PORT=7777
+#   make sample SAMPLE_URL=http://192.168.1.10:9000
+#   make sample SAMPLE_COUNT=50 SAMPLE_DELAY=0.1
+SAMPLE_PORT  ?= 9000
+SAMPLE_URL   ?=
+SAMPLE_COUNT ?= 25
+SAMPLE_DELAY ?= 0.05
+
+.PHONY: sample
+sample: ## Fire 25 varied sample requests at a running app (SAMPLE_PORT=, SAMPLE_URL=, SAMPLE_COUNT=, SAMPLE_DELAY=)
+	@./scripts/sample-requests.sh \
+		$(if $(SAMPLE_URL),-u $(SAMPLE_URL),-p $(SAMPLE_PORT)) \
+		-n $(SAMPLE_COUNT) -d $(SAMPLE_DELAY)

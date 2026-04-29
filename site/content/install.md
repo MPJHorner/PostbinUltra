@@ -1,117 +1,115 @@
 ---
 title: "Install"
-description: "How to install Postbin Ultra on macOS, Linux, and Windows: pre-built binaries, Cargo, or build from source."
+description: "Install Postbin Ultra on macOS, Linux, or Windows. Drag-and-drop .dmg, install script, Homebrew tap, or cargo install from source."
 slug: "install"
 ---
 
 # Install
 
-Postbin Ultra ships as a single binary for macOS (Intel and Apple Silicon), Linux (x86_64 and arm64), and Windows (x86_64). Pick the option that fits your workflow.
+Postbin Ultra is a native desktop app. Pick your platform.
 
-## Pre-built binaries
+## One-liner (macOS + Linux)
 
-Download the matching archive from the [latest release]({{repo}}/releases/latest):
+```sh
+curl -sSL https://raw.githubusercontent.com/MPJHorner/PostbinUltra/main/scripts/install.sh | bash
+```
+
+The script detects your OS + arch, grabs the right release artefact from the [latest release]({{repo}}/releases/latest), drops it in the right place (`/Applications` on macOS, `~/.local/bin/PostbinUltra` on Linux), and prints how to launch it.
+
+## macOS
+
+### Drag-and-drop (`.dmg`)
+
+Download the matching `.dmg` from the [latest release]({{repo}}/releases/latest):
 
 | Platform | Archive |
 | --- | --- |
-| macOS, Apple Silicon | `postbin-ultra-<version>-aarch64-apple-darwin.tar.gz` |
-| macOS, Intel | `postbin-ultra-<version>-x86_64-apple-darwin.tar.gz` |
-| Linux, x86_64 | `postbin-ultra-<version>-x86_64-unknown-linux-gnu.tar.gz` |
-| Linux, arm64 | `postbin-ultra-<version>-aarch64-unknown-linux-gnu.tar.gz` |
-| Windows, x86_64 | `postbin-ultra-<version>-x86_64-pc-windows-msvc.zip` |
+| Apple Silicon | `PostbinUltra-<version>-aarch64-apple-darwin.dmg` |
+| Intel | `PostbinUltra-<version>-x86_64-apple-darwin.dmg` |
 
-Each archive ships with a matching `.sha256` checksum.
+Open it, drag `PostbinUltra.app` to `Applications`, double-click. The capture server binds `127.0.0.1:9000` on first launch.
 
-### macOS one-liner
+### Homebrew (planned)
 
-```sh
-curl -L -o postbin-ultra.tar.gz \
-  https://github.com/MPJHorner/PostbinUltra/releases/latest/download/postbin-ultra-aarch64-apple-darwin.tar.gz
-tar -xzf postbin-ultra.tar.gz
-./postbin-ultra
-```
-
-Swap `aarch64` for `x86_64` if you're on an Intel Mac.
-
-### Linux one-liner
+A tap is on the way:
 
 ```sh
-curl -L -o postbin-ultra.tar.gz \
-  https://github.com/MPJHorner/PostbinUltra/releases/latest/download/postbin-ultra-x86_64-unknown-linux-gnu.tar.gz
-tar -xzf postbin-ultra.tar.gz
-./postbin-ultra
+brew install --cask MPJHorner/postbin/postbin-ultra
 ```
 
-### Windows
+Status: [tracked here]({{repo}}/issues). Use the `.dmg` for now.
 
-Download the `.zip`, extract it, and run `postbin-ultra.exe` from PowerShell or `cmd`.
+### Gatekeeper warning
+
+The first launch shows *"PostbinUltra cannot be opened because the developer cannot be verified."* The release artefacts are unsigned for v2.0.0. Two ways to authorise:
+
+- Finder → right-click `PostbinUltra` → **Open** → confirm. macOS records the exception, the warning won't reappear.
+- Or from the terminal:
+  ```sh
+  xattr -d com.apple.quarantine /Applications/PostbinUltra.app
+  ```
+
+Notarised builds are on the v2.1 roadmap.
+
+## Linux
+
+### Tarball
+
+Download the matching `.tar.gz` from the [latest release]({{repo}}/releases/latest):
+
+| Arch | Archive |
+| --- | --- |
+| x86_64 | `PostbinUltra-<version>-x86_64-unknown-linux-gnu.tar.gz` |
+| arm64 | `PostbinUltra-<version>-aarch64-unknown-linux-gnu.tar.gz` |
+
+```sh
+tar -xzf PostbinUltra-2.0.0-x86_64-unknown-linux-gnu.tar.gz
+./PostbinUltra
+```
+
+Drop the binary somewhere on `$PATH` (e.g. `~/.local/bin/`) for a `PostbinUltra` command.
+
+### Distro requirements
+
+The release builds target a recent glibc and the X11 / Wayland windowing libraries that ship on every modern desktop distro (Ubuntu 22.04+, Fedora 38+, Debian 12+). Older distros may need to build from source.
+
+## Windows
+
+Download `PostbinUltra-<version>-x86_64-pc-windows-msvc.zip` from the [latest release]({{repo}}/releases/latest), unzip it anywhere, and double-click `PostbinUltra.exe`.
+
+Windows SmartScreen may show *"Windows protected your PC"* on first launch. Click **More info** → **Run anyway**.
+
+## From source (any platform)
+
+Requires Rust 1.85+ (any recent stable will do).
+
+```sh
+cargo install --git https://github.com/MPJHorner/PostbinUltra postbin-ultra-desktop
+```
+
+The compiled binary lands at `~/.cargo/bin/PostbinUltra`. Add `~/.cargo/bin` to `$PATH` if it isn't already and run `PostbinUltra` from anywhere.
 
 ## Verify checksums
 
-Every archive ships with a `.sha256` next to it. To verify before extracting:
+Every release archive ships with a matching `.sha256`:
 
 ```sh
-curl -LO https://github.com/MPJHorner/PostbinUltra/releases/latest/download/postbin-ultra-aarch64-apple-darwin.tar.gz
-curl -LO https://github.com/MPJHorner/PostbinUltra/releases/latest/download/postbin-ultra-aarch64-apple-darwin.tar.gz.sha256
-shasum -a 256 -c postbin-ultra-aarch64-apple-darwin.tar.gz.sha256
+curl -LO https://github.com/MPJHorner/PostbinUltra/releases/latest/download/PostbinUltra-2.0.0-aarch64-apple-darwin.dmg
+curl -LO https://github.com/MPJHorner/PostbinUltra/releases/latest/download/PostbinUltra-2.0.0-aarch64-apple-darwin.dmg.sha256
+shasum -a 256 -c PostbinUltra-2.0.0-aarch64-apple-darwin.dmg.sha256
 ```
 
-`OK` confirms the binary you have is the one the release workflow built.
-
-## Cargo
-
-If you have a Rust toolchain installed:
-
-```sh
-cargo install --git https://github.com/MPJHorner/PostbinUltra
-```
-
-The compiled binary lands in `~/.cargo/bin/postbin-ultra`.
-
-## From source
-
-```sh
-git clone https://github.com/MPJHorner/PostbinUltra.git
-cd PostbinUltra
-cargo build --release
-./target/release/postbin-ultra
-```
-
-Requires Rust 1.85 or newer.
+`OK` means the artefact is the exact one the release workflow built.
 
 ## Self-update
 
-Once installed, Postbin Ultra knows how to update itself in place:
+Postbin Ultra checks for new releases at startup (unless **Skip update check on startup** is on in Settings → Advanced). When a newer version exists, the top bar shows a small toast — click it to open the release page in your browser.
 
-```sh
-postbin-ultra --update
-```
-
-This downloads the matching archive from the latest GitHub release, verifies it, and replaces the running binary. See the [CLI reference]({{base}}/cli/#flag-update) for `--update` and `--no-update-check`.
-
-## Troubleshooting
-
-### macOS Gatekeeper
-
-The first time you launch the binary on macOS you may see "cannot be opened because the developer cannot be verified." Two options:
-
-- Right-click the binary in Finder, choose Open, then confirm, macOS records the exception and the warning won't appear again.
-- Or remove the quarantine attribute from the terminal:
-
-```sh
-xattr -d com.apple.quarantine ./postbin-ultra
-```
-
-### Linux glibc
-
-The release builds target a recent glibc. On older distributions (CentOS 7, Debian 10, etc.) the binary may fail to load. Build from source on the target machine.
-
-### Port already in use
-
-If `9000` or `9001` is busy, Postbin Ultra walks up to 50 ports looking for the next free one and prints the URL it actually bound. Pin specific ports with `-p` and `-u` if needed.
+You can also check on demand: Settings → Advanced → **Check for updates**.
 
 ## Next steps
 
-- [Quick start]({{base}}/quick-start/). send your first request, read the UI.
-- [CLI reference]({{base}}/cli/). every flag with examples.
-- [Proxy mode]({{base}}/proxy/). turn Postbin into a transparent man-in-the-middle.
+- [Quick start]({{base}}/quick-start/) — send your first request, click around the UI.
+- [Forward + replay]({{base}}/forward/) — turn Postbin into a transparent proxy.
+- [Configuration]({{base}}/configuration/) — every Settings tab and field.
+- [Comparison]({{base}}/comparison/) — Postbin Ultra vs webhook.site, ngrok inspect, RequestBin.

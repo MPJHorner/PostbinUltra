@@ -22,22 +22,18 @@ const REPO = 'https://github.com/MPJHorner/PostbinUltra';
 const NAV = [
   { href: '/install/', label: 'Install' },
   { href: '/quick-start/', label: 'Quick start' },
-  { href: '/cli/', label: 'CLI' },
-  { href: '/proxy/', label: 'Proxy' },
-  { href: '/web-ui/', label: 'Web UI' },
-  { href: '/api/', label: 'API' },
+  { href: '/forward/', label: 'Forward' },
+  { href: '/configuration/', label: 'Configuration' },
+  { href: '/use-cases/', label: 'Use cases' },
   { href: '/changelog/', label: 'Changelog' },
 ];
 
 const FOOTER_LINKS = [
   { href: '/install/', label: 'Install' },
   { href: '/quick-start/', label: 'Quick start' },
-  { href: '/cli/', label: 'CLI reference' },
-  { href: '/proxy/', label: 'Proxy mode' },
-  { href: '/logging/', label: 'Logging' },
-  { href: '/web-ui/', label: 'Web UI' },
-  { href: '/api/', label: 'API' },
+  { href: '/forward/', label: 'Forward + replay' },
   { href: '/configuration/', label: 'Configuration' },
+  { href: '/logging/', label: 'Logging' },
   { href: '/use-cases/', label: 'Use cases' },
   { href: '/comparison/', label: 'Comparison' },
   { href: '/contributing/', label: 'Contributing' },
@@ -84,18 +80,11 @@ async function copyDir(src, dest) {
 // ───────── data sources ─────────
 
 async function loadVersion() {
-  const cargo = await readFile(join(ROOT, 'Cargo.toml'), 'utf8');
+  // Workspace layout: the canonical version lives on the CLI crate.
+  const cargo = await readFile(join(ROOT, 'crates/postbin-ultra/Cargo.toml'), 'utf8');
   const m = cargo.match(/^version\s*=\s*"([^"]+)"/m);
   if (!m) throw new Error('Could not extract version from Cargo.toml');
   return m[1];
-}
-
-async function loadCliHelp() {
-  const live = process.env.CLI_HELP_PATH;
-  if (live && existsSync(live)) return readFile(live, 'utf8');
-  const cached = join(SITE, 'cli-help.txt');
-  if (existsSync(cached)) return readFile(cached, 'utf8');
-  return null;
 }
 
 async function loadChangelogEntries() {
@@ -299,7 +288,7 @@ function buildHead({ title, description, slug, version }) {
   <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>`;
 }
 
-async function buildPages({ version, cliHelp, changelogEntries, templates }) {
+async function buildPages({ version, changelogEntries, templates }) {
   const contentDir = join(SITE, 'content');
   const files = (await readdir(contentDir)).filter((f) => f.endsWith('.md'));
 
@@ -315,7 +304,6 @@ async function buildPages({ version, cliHelp, changelogEntries, templates }) {
 
     const replacements = {
       version,
-      cli_help: cliHelp ? escapeHtml(cliHelp) : '<em>The CLI help text is rendered at build time. Run `postbin-ultra --help` locally to see it.</em>',
       changelog_html: renderChangelogHtml(changelogEntries),
       base: BASE,
       repo: REPO,
@@ -402,18 +390,13 @@ async function main() {
   await rm(DIST, { recursive: true, force: true });
   await mkdir(DIST, { recursive: true });
 
-  const [version, cliHelp, changelogEntries, templates] = await Promise.all([
+  const [version, changelogEntries, templates] = await Promise.all([
     loadVersion(),
-    loadCliHelp(),
     loadChangelogEntries(),
     loadTemplates(),
   ]);
 
-  if (!cliHelp) {
-    console.warn('  ! cli-help.txt missing — CLI page will show a fallback notice');
-  }
-
-  const pages = await buildPages({ version, cliHelp, changelogEntries, templates });
+  const pages = await buildPages({ version, changelogEntries, templates });
 
   await Promise.all(pages.map(writePage));
   await writeSitemap(pages);
