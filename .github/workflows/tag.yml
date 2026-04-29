@@ -68,4 +68,18 @@ jobs:
         run: |
           git tag -a "${TAG}" -m "${TAG}"
           git push origin "${TAG}"
-          echo "::notice::pushed ${TAG} → release.yml will build artefacts"
+
+      # Tag pushes made with the default GITHUB_TOKEN do NOT trigger
+      # downstream workflows (a long-standing Actions limitation, see
+      # https://docs.github.com/en/actions/security-guides/automatic-token-authentication#using-the-github_token-in-a-workflow).
+      # We use a `workflow_dispatch` call to kick the release workflow
+      # explicitly. Dispatch with GITHUB_TOKEN works fine — it's only
+      # `push` triggers that get suppressed.
+      - name: Dispatch release workflow
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh workflow run release.yml -f tag="${TAG}"
+          echo "::notice::pushed ${TAG} and dispatched release.yml"
