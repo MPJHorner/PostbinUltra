@@ -1,20 +1,40 @@
 # Codecov configuration. The badge in the README reflects what's reported here.
 #
-# We exclude four files from coverage on purpose. Each file's own header
-# comment explains why; the short version:
+# Files excluded from coverage on purpose. Each file's own header comment
+# explains why; the short version:
 #
-# - src/main.rs        — binary entry point. Exercised end-to-end by the
-#                        integration tests via `app::start`.
-# - src/assets.rs      — a single `derive(RustEmbed)` declaration. Covered
-#                        implicitly by every test that serves a static asset.
-# - src/update.rs      — the `--update` self-update flow makes real GitHub API
-#                        calls. Pure logic (parse_semver, is_newer) is
-#                        unit-tested directly; network paths are excluded.
-# - src/entrypoint.rs  — the top-level `run()`, signal-handling
-#                        `wait_for_shutdown`, network update-check spawn, and
-#                        `open_browser` subprocess. None of these can be
-#                        deterministically driven from a unit test runner.
-#                        See the file's own header comment for details.
+# - crates/postbin-ultra/src/update.rs               — self-update via GitHub
+#                                                       releases API. Pure
+#                                                       helpers (parse_semver,
+#                                                       is_newer) are unit-
+#                                                       tested directly; the
+#                                                       network paths can't be
+#                                                       deterministically
+#                                                       exercised.
+# - crates/postbin-ultra-desktop/src/main.rs         — eframe entry; wraps the
+#                                                       tested DesktopApp::new.
+# - crates/postbin-ultra-desktop/src/app.rs          — eframe::App impl. Pure
+#                                                       rendering. Pure-data
+#                                                       helpers (build_raw,
+#                                                       format_label,
+#                                                       forwarded_tab_label,
+#                                                       …) ARE unit-tested
+#                                                       inline; the egui
+#                                                       layout passes can't
+#                                                       be driven from a unit
+#                                                       test.
+# - crates/postbin-ultra-desktop/src/widgets.rs      — egui widgets. Tested
+#                                                       indirectly via state
+#                                                       and visual smoke
+#                                                       tests.
+# - crates/postbin-ultra-desktop/src/icon.rs         — bytes-to-IconData. Pure
+#                                                       embedded asset glue.
+# - crates/postbin-ultra-desktop/src/fonts.rs        — registers bundled font
+#                                                       files via include_bytes!.
+# - crates/postbin-ultra-desktop/src/update.rs       — same as the lib's
+#                                                       update.rs (network).
+# - tools/**                                         — manual build-time tools
+#                                                       (icon-gen).
 
 coverage:
   status:
@@ -29,10 +49,14 @@ coverage:
         threshold: 5%
 
 ignore:
-  - "src/main.rs"
-  - "src/assets.rs"
-  - "src/update.rs"
-  - "src/entrypoint.rs"
+  - "crates/postbin-ultra-desktop/src/main.rs"
+  - "crates/postbin-ultra-desktop/src/app.rs"
+  - "crates/postbin-ultra-desktop/src/widgets.rs"
+  - "crates/postbin-ultra-desktop/src/icon.rs"
+  - "crates/postbin-ultra-desktop/src/fonts.rs"
+  - "crates/postbin-ultra-desktop/src/update.rs"
+  - "crates/postbin-ultra/src/update.rs"
+  - "tools/**"
 
 comment:
   layout: "diff, flags, files"

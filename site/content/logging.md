@@ -1,72 +1,108 @@
 ---
 title: "Logging"
-description: "Use --log-file to write captured requests as NDJSON. Pair with --forward for an AI assistant that can read live traffic."
+description: "Configure Postbin Ultra to write every captured request to a JSON-lines log file. Pipe into other tools or feed to an AI assistant watching alongside you."
 slug: "logging"
 ---
 
 # Logging
 
-`--log-file PATH` appends every captured request to a file as one JSON object per line (NDJSON). The file is created if it doesn't exist and is never truncated, so multiple runs accumulate into the same log unless you delete it.
+Postbin Ultra can append every captured request (and every forward outcome) to a file as JSON-lines. One request per line. The file grows for as long as the app runs; nothing is rotated or truncated automatically, so point it at somewhere you can rotate yourself if needed.
 
-```sh
-postbin-ultra --log-file ./requests.ndjson
+## Enable
+
+Settings → Advanced → **Log file**. Type a path, click **Save**.
+
+| Path style | Where it ends up |
+| --- | --- |
+| Absolute (`/var/log/pbu.jsonl`) | Exactly that |
+| `~/postbin.jsonl` | Relative to your home dir |
+| `postbin.jsonl` | Relative to the app's working dir (usually wherever you launched it from) |
+
+To turn it off, clear the field and Save.
+
+## Format
+
+Each line is a single JSON object representing one captured request. Schema is the same as the in-memory `CapturedRequest`:
+
+```json
+{
+  "id": "1f8b3a4d-…",
+  "received_at": "2026-04-29T12:32:24.288Z",
+  "method": "POST",
+  "path": "/webhook/stripe",
+  "query": "",
+  "version": "HTTP/1.1",
+  "remote_addr": "127.0.0.1:51384",
+  "headers": [["content-type","application/json"], …],
+  "body": "{\"id\":\"evt_1NXyZ\",…}",
+  "body_encoding": "utf8",
+  "body_size": 535,
+  "body_truncated": false,
+  "body_bytes_received": 535,
+  "forwards": [{
+    "started_at": "2026-04-29T12:32:24.430Z",
+    "upstream_url": "https://api.example.com/webhook/stripe",
+    "status": {
+      "kind": "success",
+      "status_code": 200,
+      "headers": [["content-type","application/json"], …],
+      "body": {"encoding":"utf8","text":"{\"ok\":true}"},
+      "body_size": 11,
+      "duration_ms": 142
+    }
+  }],
+  "forward": {…}
+}
 ```
 
-Each line is the same JSON shape as `/api/requests/{id}`. see the [API reference]({{base}}/api/#schema).
+`forward` is a convenience alias for `forwards.last()` — the most recent attempt.
 
-## Why NDJSON
+### `body_encoding`
 
-Newline-delimited JSON is the format every log tool already understands. Each line is independently parseable, which means you can `tail -f` it, pipe it into `jq`, ship it to a log aggregator, or feed it into a coding agent without a structured-stream parser.
+- `utf8` — body is the UTF-8 string in `body`
+- `base64` — body is binary; decode `body` as base64 to get the original bytes
 
-## Recipes
+### `forwards[].status.kind`
 
-### Tail every POST as it arrives
+- `success` — upstream responded; `status_code`, `headers`, `body`, `body_size`, `duration_ms` are populated
+- `skipped` — Postbin refused to forward (e.g. body was truncated); `reason` field explains
+- `error` — upstream was unreachable / timed out; `message` describes; `duration_ms` shows how long we waited before giving up
 
-```sh
-tail -f requests.ndjson | jq 'select(.method == "POST") | {path, body}'
-```
+## When the file gets written
 
-### Find requests with a particular header
+A line is appended every time the in-memory store broadcasts:
+- A new request arrives (`StoreEvent::Request`)
+- A forward outcome is appended (`StoreEvent::ForwardUpdated`)
 
-```sh
-jq 'select(.headers | map(select(.[0]=="x-stripe-signature")) | length > 0)' requests.ndjson
-```
+So a single captured-and-forwarded request shows up as **two** lines: the request immediately, and the same request again with the `forwards` array populated once the upstream responds. Replays append a third line, fourth line, etc.
 
-### Count requests per path
+This is intentional — it gives you a true ordered timeline of every event Postbin saw.
 
-```sh
-jq -r '.path' requests.ndjson | sort | uniq -c | sort -rn
-```
+## Use cases
 
-### Replay everything from yesterday's log
+### AI-assistant pairing
 
-```sh
-jq -r 'select(.method=="POST") | .body' requests.ndjson \
-  | while read body; do
-    curl -X POST -H 'content-type: application/json' \
-      -d "$body" http://127.0.0.1:3000/webhook
-  done
-```
+Have a coding agent open the log file with `tail -f` while you keep working in the app. The agent sees the same captures you do, can reason about request shapes, and can suggest fixes without screenshotting.
 
-## Pairing with an AI assistant
-
-The combination `--forward URL --log-file PATH` is the killer setup when you're coding with an AI assistant (Claude Code, Cursor, etc.) and you need it to *see* the live traffic flowing through the system you're debugging.
-
-1. Run Postbin Ultra in proxy mode pointed at your dev backend, with a log file.
-2. Point your webhook source / SDK / test client at Postbin's capture port.
-3. Tell your assistant the path: "watch `./requests.ndjson` and tell me what's coming in."
-
-The assistant reads the structured NDJSON, you keep working, and the upstream still gets every request. No copy-pasting curl traces, no screenshotting the bin, no narrating headers from memory.
+### Pipe into `jq`
 
 ```sh
-postbin-ultra \
-  --forward http://127.0.0.1:3000 \
-  --log-file ./requests.ndjson \
-  --max-body-size 5242880
+tail -f ~/postbin.jsonl | jq 'select(.method == "POST") | {path, body}'
 ```
 
-## Caveats
+Live filter to just the POSTs, just their paths and bodies.
 
-- The log file grows unbounded. Rotate it yourself, or delete and restart Postbin.
-- Truncated bodies (over `--max-body-size`) are still logged, marked with `body_truncated: true` and the original byte count in `body_bytes_received`.
-- The log is appended best-effort. A disk-full or permission error is logged to stderr but does not stop the capture server.
+### Replay later
+
+`jq -r '.body' ~/postbin.jsonl > requests.txt` and you have a recordable corpus. Combine with the [sample-requests script]({{base}}/quick-start/#5-try-the-sample-requests-script) for repeatable load testing.
+
+## What's not in the log
+
+- Click-through events (selecting a row in the UI, opening Settings, etc.)
+- Mode toggles (pause / theme / forward enabled)
+- Request body bytes that exceed `max_body_size` — only the truncation flag and the bytes-received count are written
+
+## Next
+
+- [Configuration]({{base}}/configuration/) — every setting in one table
+- [Forward + replay]({{base}}/forward/) — the source of those `forwards[]` entries

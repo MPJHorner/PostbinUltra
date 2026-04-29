@@ -1,0 +1,17 @@
+[package]
+name = "icon-gen"
+version = "0.0.0"
+description = "Generates the PostbinUltra app icon at all required sizes."
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "icon-gen"
+path = "src/main.rs"
+
+[dependencies]
+tiny-skia = "0.11"
+png = "0.17"

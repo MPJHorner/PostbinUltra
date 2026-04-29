@@ -1,75 +1,89 @@
 ---
 title: "Quick start"
-description: "Run Postbin Ultra, send your first request, and tour the terminal output and live web UI."
+description: "Send your first request to Postbin Ultra and inspect the result. Method chips, JSON tree, headers grid, forward + replay."
 slug: "quick-start"
 ---
 
 # Quick start
 
-You should be five minutes from your first captured request.
+Two minutes from install to "I just inspected my first webhook."
 
-## 1. Run it
+## 1. Launch the app
 
-```sh
-postbin-ultra
+After [installing]({{base}}/install/), open Postbin Ultra. The top bar shows the capture URL — click the pill to copy it.
+
+```
+Postbin Ultra
+  Capture  http://127.0.0.1:9000     ●  ↗ off  FORWARD    🗑 ⏸ 🌙 ⚙
 ```
 
-No flags needed. The capture server binds `127.0.0.1:9000` and the web UI binds `127.0.0.1:9001`. The banner prints what it actually bound:
-
-```text
-  ▶ Postbin Ultra v{{version}}
-    Capture  http://127.0.0.1:9000   (any method, any path)
-    Web UI   http://127.0.0.1:9001
-    Buffer   1000 requests · 10 MiB max body
-
-  Waiting for requests… (Ctrl+C to quit)
-```
-
-If `9000` was already in use you'd see a one-line note and the next free port:
-
-```text
-  ! capture port 9000 in use, using 9002
-```
-
-Pin specific ports with `-p` and `-u`. See [CLI options]({{base}}/cli/) for the rest.
+The default port is `9000`. Pick any port you want via Settings → Capture → Port.
 
 ## 2. Send a request
 
-Open a second terminal and `curl` anything you like at the capture URL:
+In another terminal, fire anything HTTP at the capture URL:
 
 ```sh
-curl -X POST http://127.0.0.1:9000/webhook \
+curl -X POST http://127.0.0.1:9000/webhook/test \
   -H 'content-type: application/json' \
-  -d '{"event":"user.created","id":42}'
+  -d '{"event":"user.created","user":{"id":42,"email":"matt@example.com"}}'
 ```
 
-You'll see it land in the first terminal:
+It lands in the sidebar instantly — `POST  /webhook/test  now  84 B`.
 
-```text
-  14:23:45.123  POST     /webhook                                       45 B  application/json          from 127.0.0.1:54321
+## 3. Inspect it
+
+Click the row. Five tabs across the top:
+
+| Tab | What you see |
+| --- | --- |
+| **Body** | JSON tree (collapsible), syntax-highlighted XML / HTML, decoded form-urlencoded, hex view for binary. Expand all / Collapse all in one click. |
+| **Headers** | All headers as a grid, accent-coloured keys, monospace values. |
+| **Query** | Decoded query string as a key/value table. |
+| **Raw** | Full HTTP request — request line, headers, body, in one selectable text block. |
+| **Forwarded** | (Only when forward is on or you've clicked Replay) — upstream response with status pill, headers, body, attempt history. |
+
+## 4. Filter the list
+
+- Type in the **Filter** field at the top to match path, method, header, or query
+- Click any **METHOD** chip below the top bar to toggle that method off — chip dims, those rows disappear from the sidebar
+- Click again to bring them back. **Reset** restores all chips to on
+
+## 5. Try the sample-requests script
+
+Postbin Ultra ships with `scripts/sample-requests.sh` — fires 25 realistic requests at the running app for you to play with:
+
+```sh
+./scripts/sample-requests.sh           # default port 9000
+./scripts/sample-requests.sh -p 7777   # custom port
+./scripts/sample-requests.sh -n 100    # repeat until you have 100 captures
 ```
 
-## 3. Inspect it in the browser
+You'll see Stripe webhooks, GitHub push events, Slack URL verifications, multipart uploads with images, SOAP XML, GraphQL queries, raw JPEG PUTs, OPTIONS preflights, and more. Each one lands in the sidebar.
 
-Open `http://127.0.0.1:9001`.
+## 6. Set up forward (optional)
 
-The UI is a two-pane layout: the request list on the left, the full detail on the right. Click any row to inspect headers, formatted body, query parameters, the raw HTTP, and the Replay tab. Use <kbd>j</kbd> / <kbd>k</kbd> to step through requests and <kbd>?</kbd> for the full shortcut list.
+Want to capture *and* relay to a real upstream? Click the **Forward** pill in the top bar to open Settings → Forward, set an Upstream URL, tick **Forward each captured request upstream**, save.
 
-A complete tour of the formatters and shortcuts lives on the [Web UI page]({{base}}/web-ui/).
+Now every captured request is also sent to your upstream, the response is stored alongside the request, and the **Forwarded** tab shows what came back. Click **Replay** to fire any captured request again — replays land in the attempt history table on that same tab.
 
-## What kinds of traffic to point at it
+Full guide: [Forward + replay]({{base}}/forward/).
 
-Anything that speaks HTTP works:
+## Keyboard shortcuts
 
-- A webhook source (Stripe, GitHub, Shopify, Slack, Twilio, Sentry, custom).
-- An HTTP client or SDK in your code, with the base URL pointed at `localhost:9000`.
-- A `curl` or `httpie` script.
-- A browser, by visiting `http://localhost:9000/whatever`.
-- A test harness or load tool. Postbin captures up to the buffer size, then drops the oldest.
+| Key | Action |
+| --- | --- |
+| `j` / `↓` | Next request in list |
+| `k` / `↑` | Previous request in list |
+| `g` | Jump to most recent (top of list) |
+| `1` / `2` / `3` / `4` | Body / Headers / Query / Raw tab |
+| `p` | Pause / resume capture |
+| `t` | Cycle theme: System → Dark → Light |
+| `Shift+X` | Clear all captures |
+| `,` | Open Settings |
 
-## Common next moves
+## Next
 
-- **Use it as a transparent proxy.** [Forward / proxy mode]({{base}}/proxy/) relays every captured request to an upstream URL and returns the upstream's response.
-- **Tail captured requests as a log.** [Logging]({{base}}/logging/) writes NDJSON to a file you can `tail -f`.
-- **Pair with an AI assistant.** Combine `--forward` and `--log-file` so a coding agent can see live traffic while you work.
-- **Drive it programmatically.** The [JSON API]({{base}}/api/) is the same surface the UI uses.
+- [Forward + replay]({{base}}/forward/) — proxy mode, attempt history, the Replay button
+- [Configuration]({{base}}/configuration/) — every Settings tab + field
+- [Use cases]({{base}}/use-cases/) — webhook debugging, SDK inspection, replay-against-staging workflows

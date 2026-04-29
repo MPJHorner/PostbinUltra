@@ -1,14 +1,14 @@
 ---
-title: "Postbin Ultra: local HTTP request inspector"
-description: "Capture, inspect, replay, and proxy any HTTP request on a local port. Single Rust binary, live web UI, no accounts, no cloud."
+title: "Postbin Ultra: native HTTP request inspector"
+description: "Native macOS, Linux, and Windows app for capturing and inspecting HTTP requests. JSON tree view, syntax highlighting, forward proxy with replay. No accounts, no cloud."
 slug: ""
 layout: home
 ---
 
 <section class="hero">
-  <span class="hero-eyebrow"><span class="badge">v{{version}}</span> Local-first HTTP inspector</span>
-  <h1>Capture every request. <span class="accent">Right where you work.</span></h1>
-  <p class="lede">Postbin Ultra is a local HTTP request inspector for developers. Point any webhook, SDK, or test client at a port on your machine and watch every request appear in your terminal and a live web UI. No accounts, no tunnels, no data leaving your laptop.</p>
+  <span class="hero-eyebrow"><span class="badge">v{{version}}</span> Native HTTP inspector</span>
+  <h1>Capture every request. <span class="accent">Inspect it like a native.</span></h1>
+  <p class="lede">Postbin Ultra is a native desktop app that catches every HTTP request landing on a port on your machine and renders it the way you actually want to read it — JSON tree view with collapse/expand, syntax-highlighted XML and HTML, forward proxy with one-click replay, attempt history. No accounts, no tunnels, no data leaving your laptop.</p>
 
   <div class="hero-actions">
     <a class="btn primary" href="{{base}}/install/">Install Postbin Ultra</a>
@@ -19,64 +19,63 @@ layout: home
   </div>
 
   <div class="hero-meta">
-    <span><strong>Rust</strong> · single binary, ~5 MB</span>
+    <span><strong>Native Rust + egui</strong></span>
     <span><strong>macOS · Linux · Windows</strong></span>
     <span><strong>MIT</strong> licensed</span>
     <span><strong>0 telemetry</strong> · runs offline</span>
   </div>
 
   <figure class="hero-figure">
-    <img src="{{base}}/img/screenshot.png" alt="Postbin Ultra web UI showing a captured POST request with formatted JSON body, headers, and replay tab" width="1600" height="1000" />
+    <img src="{{base}}/img/screenshot.png" alt="Postbin Ultra desktop app showing a captured Stripe webhook with the JSON body rendered as a collapsible tree, headers grid, and the Forwarded tab with attempt history" width="1600" height="1000" />
   </figure>
 </section>
 
 <section class="section">
   <div class="section-eyebrow">Why Postbin Ultra</div>
-  <h2>The local alternative to cloud request bins.</h2>
-  <p class="section-lede">Most request bins are SaaS tools. You sign up, get a random URL, copy it into the system you're debugging, and wait for traffic to round-trip through someone else's cloud. Postbin Ultra is a single binary that does the same job on <code>localhost</code>, with stronger formatting, no accounts, no rate limits, and no data leaving your machine.</p>
+  <h2>The local-first alternative to webhook.site.</h2>
+  <p class="section-lede">Most request inspectors are SaaS tools — sign up, get a random URL, copy it into the system you're debugging, wait for traffic to round-trip through someone else's cloud. Postbin Ultra is a native app that does the same job on <code>localhost</code>, with stronger formatting, no accounts, no rate limits, and no data leaving your machine. Every captured request lives in a bounded ring buffer in RAM and disappears when you close the app.</p>
 
   <div class="feature-grid">
     <div class="feature">
       <h3><span class="feature-icon">⚡</span> Real-time</h3>
-      <p>Live CLI stream and a Server-Sent-Events web UI. Requests appear the instant they hit the port.</p>
+      <p>Captures arrive instantly in the sidebar. Click any row to inspect headers, query, body, and the forwarded response.</p>
     </div>
     <div class="feature">
       <h3><span class="feature-icon">⌨</span> Any method, any path</h3>
-      <p>Catch-all router. <span class="method-badge GET">GET</span> <span class="method-badge POST">POST</span> <span class="method-badge PUT">PUT</span> <span class="method-badge PATCH">PATCH</span> <span class="method-badge DELETE">DELETE</span> and any custom verb on any URL.</p>
+      <p>Catch-all router. <span class="method-badge GET">GET</span> <span class="method-badge POST">POST</span> <span class="method-badge PUT">PUT</span> <span class="method-badge PATCH">PATCH</span> <span class="method-badge DELETE">DELETE</span> <span class="method-badge OPTIONS">OPTIONS</span> + custom verbs on any URL.</p>
     </div>
     <div class="feature">
-      <h3><span class="feature-icon">⇄</span> Proxy mode</h3>
-      <p><code>--forward</code> turns Postbin into a transparent man-in-the-middle. Capture, then relay to a real upstream.</p>
+      <h3><span class="feature-icon">⇄</span> Forward + replay</h3>
+      <p>Turn Postbin into a transparent proxy with one click. Every forwarded request stores the upstream response. <a href="{{base}}/forward/">Click "Replay" to fire it again</a> — every attempt lands in an attempt-history table.</p>
     </div>
     <div class="feature">
-      <h3><span class="feature-icon">{ }</span> Smart formatters</h3>
-      <p>Collapsible JSON, form-encoded tables, multipart parts, image previews, hex dumps with ASCII gutter.</p>
+      <h3><span class="feature-icon">{ }</span> JSON tree view</h3>
+      <p>Collapsible objects and arrays, syntax-highlighted JSON / XML / HTML, hex view for binary, decoded form-urlencoded, multipart-aware. Expand all / Collapse all in one click.</p>
     </div>
     <div class="feature">
-      <h3><span class="feature-icon">▶</span> Replay</h3>
-      <p>Re-fire any captured request to a target URL from the browser. Headers and body intact.</p>
+      <h3><span class="feature-icon">▶</span> Replay history</h3>
+      <p>Re-fire any captured request through the current forward target. The new attempt lands in a table; click any row to compare 200 → 500 → 200 over time.</p>
     </div>
     <div class="feature">
-      <h3><span class="feature-icon">🗎</span> NDJSON log</h3>
-      <p><code>--log-file</code> tails into a structured log so AI assistants can watch live traffic alongside you.</p>
+      <h3><span class="feature-icon">🎚</span> Method-chip filter</h3>
+      <p>Toggle GET / POST / PUT / PATCH / DELETE / OPTIONS / HEAD / OTHER chips alongside a free-text filter. See only the requests that matter right now.</p>
     </div>
   </div>
 </section>
 
 <section class="section">
   <div class="section-eyebrow">30-second tour</div>
-  <h2>Run it. Send a request. See it.</h2>
-  <p class="section-lede">No flags needed. Defaults bind <code>127.0.0.1:9000</code> for capture and <code>127.0.0.1:9001</code> for the UI. If a port is busy, the next free one is used and the actual URL is printed.</p>
+  <h2>Open it. Send a request. See it.</h2>
+  <p class="section-lede">No setup. Default capture port is <code>127.0.0.1:9000</code>. Click the capture pill in the top bar to copy the URL.</p>
 
   <div class="tour">
     <div class="tour-step">
       <span class="step-num">01</span>
-      <h3>Run it</h3>
-      <p>One binary, no config. Banner shows the URLs it bound.</p>
-<pre>$ postbin-ultra
-  ▶ Postbin Ultra v{{version}}
-    Capture  <span class="t-mute">http://127.0.0.1:9000</span>
-    Web UI   <span class="t-mute">http://127.0.0.1:9001</span></pre>
+      <h3>Open it</h3>
+      <p>The capture URL is shown in the top bar. Click to copy.</p>
+<pre>Postbin Ultra v{{version}}
+  Capture  <span class="t-mute">http://127.0.0.1:9000</span>
+  Forward  <span class="t-mute">not set</span></pre>
     </div>
     <div class="tour-step">
       <span class="step-num">02</span>
@@ -89,8 +88,8 @@ layout: home
     <div class="tour-step">
       <span class="step-num">03</span>
       <h3>Inspect it</h3>
-      <p>Terminal stream + live web UI. Replay, copy as curl, jump to the next request with <kbd>j</kbd>.</p>
-<pre><span class="t-mute">14:23:45.123</span>  <span class="t-method-post">POST</span>  /webhook        45 B  application/json</pre>
+      <p>Click the row in the sidebar. Body / Headers / Query / Raw / Forwarded tabs are all one keystroke away.</p>
+<pre><span class="t-method-post">POST</span>  /webhook        45 B  now</pre>
     </div>
   </div>
 </section>
@@ -102,7 +101,7 @@ layout: home
   <div class="use-grid">
     <div class="use">
       <h3>Webhook debugging</h3>
-      <p>Stripe, GitHub, Shopify, Slack, Twilio, Sentry. See exactly what they send, formatted.</p>
+      <p>Stripe, GitHub, Shopify, Slack, Twilio, SendGrid. See exactly what they send, formatted.</p>
     </div>
     <div class="use">
       <h3>SDK inspection</h3>
@@ -113,12 +112,12 @@ layout: home
       <p>Point a third-party integration at Postbin and decode the protocol from the captures.</p>
     </div>
     <div class="use">
-      <h3>Replay against staging</h3>
-      <p>Capture a request once, then re-fire it from the UI to your dev server.</p>
+      <h3>Forward to a real upstream</h3>
+      <p>Capture <em>and</em> relay to staging in one step. The Forwarded tab shows the upstream response so you can debug both sides at once.</p>
     </div>
     <div class="use">
-      <h3>AI-assistant pairing</h3>
-      <p><code>--log-file</code> + <code>--forward</code> lets a coding agent watch live traffic while you keep working.</p>
+      <h3>Replay until it works</h3>
+      <p>Hit Replay to re-fire a captured request through the current forward target. Each attempt lands in the history table — compare 500 → 200 across deploys.</p>
     </div>
     <div class="use">
       <h3>Learning HTTP</h3>
@@ -131,21 +130,18 @@ layout: home
   <div class="section-eyebrow">Get started</div>
   <h2>Install in 30 seconds.</h2>
 
-<div class="code-block"><span class="code-lang">sh</span><button class="copy-btn" type="button" aria-label="Copy code">copy</button><pre><code class="language-sh">curl -L -o postbin-ultra.tar.gz \
-  https://github.com/MPJHorner/PostbinUltra/releases/latest/download/postbin-ultra-aarch64-apple-darwin.tar.gz
-tar -xzf postbin-ultra.tar.gz
-./postbin-ultra</code></pre></div>
+<div class="code-block"><span class="code-lang">sh</span><button class="copy-btn" type="button" aria-label="Copy code">copy</button><pre><code class="language-sh">curl -sSL https://raw.githubusercontent.com/MPJHorner/PostbinUltra/main/scripts/install.sh | bash</code></pre></div>
 
-  <p>Other platforms, package managers, and source builds are listed on the <a href="{{base}}/install/">install page</a>.</p>
+  <p>Or grab the platform package manually from the <a href="{{base}}/install/">install page</a> — <code>.dmg</code> for macOS, <code>.tar.gz</code> for Linux, <code>.zip</code> for Windows.</p>
 
   <div class="cta-card">
     <div>
-      <h3>Read the full reference.</h3>
-      <p>Every flag, every API endpoint, every shortcut. Searchable, mobile-friendly, and always in sync with the code.</p>
+      <h3>Read the docs.</h3>
+      <p>Forward setup, attempt history, every settings tab, every keyboard shortcut. Always in sync with the latest release.</p>
     </div>
     <div>
-      <a class="btn primary" href="{{base}}/cli/">CLI reference</a>
-      <a class="btn ghost" href="{{base}}/api/">API reference</a>
+      <a class="btn primary" href="{{base}}/quick-start/">Quick start</a>
+      <a class="btn ghost" href="{{base}}/forward/">Forward + replay</a>
     </div>
   </div>
 </section>

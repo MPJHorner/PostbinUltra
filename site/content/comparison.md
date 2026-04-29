@@ -1,77 +1,79 @@
 ---
 title: "Comparison"
-description: "How Postbin Ultra compares to webhook.site, ngrok inspect, and mitmproxy."
+description: "Postbin Ultra vs webhook.site, ngrok inspect, RequestBin, and mitmproxy. Native vs SaaS, local vs tunnel, request inspector vs full proxy."
 slug: "comparison"
 ---
 
 # Comparison
 
-A short, honest comparison to the most common alternatives.
+Postbin Ultra sits in the gap between "cloud request bin" and "full HTTPS proxy." It is local-first, runs entirely on your machine with no accounts, captures any HTTP method on any port, and adds a forward + replay loop on top. Here's how it stacks up against the alternatives.
 
-| | Postbin Ultra | webhook.site / requestbin | ngrok inspect | mitmproxy |
-| --- | --- | --- | --- | --- |
-| Runs locally | Yes | No | Partial (proxy is local, traffic is tunneled) | Yes |
-| No account required | Yes | No | Yes (basic) | Yes |
-| Captures any method / path | Yes | Yes | Yes | Yes |
-| Pretty body rendering | Yes | Yes | Yes | Partial |
-| Replay UI | Yes | Yes | No | Yes |
-| Single binary | Yes | n/a | Yes | No (Python) |
-| Open source | Yes | No | No | Yes |
+## TL;DR
 
-## webhook.site / requestbin
+| Tool | Runs locally | Native UI | Forward + replay | Account required | Captures HTTPS upstream |
+| --- | --- | --- | --- | --- | --- |
+| **Postbin Ultra** | ✅ | ✅ (egui) | ✅ | — | client → Postbin → upstream (HTTPS optional) |
+| webhook.site | ❌ (SaaS) | browser | partial (XHR replay) | yes | requires public callback URL |
+| RequestBin (cloud) | ❌ | browser | ❌ | yes | requires public callback URL |
+| RequestBin (self-host) | ✅ | browser | ❌ | — | self-hosted only |
+| ngrok inspect | runs alongside ngrok tunnel | browser | replay | ngrok account | ngrok terminates TLS |
+| Beeceptor | ❌ | browser | mocking | yes | proxy / mock |
+| mitmproxy | ✅ | TUI / web | full HTTPS MITM | — | yes (with cert install) |
 
-Cloud request bins are the canonical "give me a URL and show me what hit it" tools. They're great for sharing a URL with a teammate or vendor. Postbin Ultra is not great at that, because there's nothing for them to hit unless you tunnel.
+## Postbin Ultra vs webhook.site
 
-Where Postbin wins:
+Webhook.site is the canonical "give me a public URL that prints requests" SaaS. It's good when you genuinely need a public URL — Stripe sandbox, GitHub webhooks pointed at the public internet — but every captured request goes through their cloud first. That's a privacy concern for anything sensitive, a latency hit, and you have to trust them not to dump your bins. Their replay feature also requires a paid plan for most realistic uses.
 
-- The data never leaves your machine. Useful for anything with payment data, customer PII, or proprietary payloads.
-- No rate limits. Capture a load test if you want to.
-- The UI is faster, because there's no round-trip through someone else's CDN.
-- `--forward` lets you proxy to a real upstream while still capturing, the SaaS tools can't do this without you also running a relay.
+Postbin Ultra is what you want when:
 
-Where webhook.site / requestbin win:
+- The webhook source can already reach your machine (local dev with mkcert, ngrok / Cloudflare Tunnel pointed at Postbin, vendor sandboxes that POST to `http://your-laptop.local`)
+- You're inspecting traffic from your own client code (SDK debugging, smoke-testing your own integrations against staging)
+- You don't want any captured payload to leave your machine
+- You want collapsible JSON, syntax highlighting, and forward + replay without paying for it
 
-- Public URL out of the box. No tunnel software needed.
-- Persistent history across machines.
-- Shareable with non-developers.
+You can run both: webhook.site to receive the public-internet hits, Postbin to record + forward / replay them locally.
 
-## ngrok inspect
+## Postbin Ultra vs ngrok inspect
 
-`ngrok` is primarily a tunnel. The inspector at `http://localhost:4040` is a side benefit and is fine for casual debugging, but it's tied to the tunnel session and limited in what it formats.
+ngrok ships an inspect UI on `http://localhost:4040` that shows requests passing through your tunnel. It's good — but tightly coupled to the tunnel. Postbin works whether you're tunneling, running entirely on `localhost`, or accepting LAN traffic, and isn't gated on an ngrok account.
 
-Where Postbin wins:
+ngrok also doesn't let you change the tunnel destination per-replay. Postbin does — capture once with Forward off, then point Forward at any URL and Replay to that destination as many times as you want.
 
-- Designed as an inspector first. Better body formatters, hex view, multipart tab, replay UI.
-- No tunnel running, no account, no warning page on the public URL.
-- Programmable JSON API for everything the UI does.
-- `--forward` can do the proxy job locally if you don't need a public URL.
+Common workflow when both are useful:
 
-Where ngrok wins:
+```
+Stripe → ngrok tunnel → http://localhost:9000 (Postbin) → http://localhost:3000 (your app)
+```
 
-- Public URL is the whole point. Postbin doesn't tunnel.
-- The free tier is enough for personal use.
+ngrok handles "make my localhost reachable from the internet"; Postbin handles "show me what's happening + let me replay."
 
-## mitmproxy
+## Postbin Ultra vs RequestBin
 
-`mitmproxy` is a much bigger, more powerful tool aimed at deep HTTPS interception, scripting, and a TUI workflow.
+RequestBin (the original, now part of Pipedream) is a cloud-only request bin. It's free for inspection, paid for replay / persistence. Same trade-offs as webhook.site.
 
-Where Postbin wins:
+The self-hostable open-source RequestBin is unmaintained and missing modern HTTP features (HTTP/2, multipart streaming) that Postbin handles.
 
-- Single binary, ~5 MB, mitmproxy is a Python install with addons.
-- The web UI is faster and prettier for the "show me incoming requests" use case, mitmproxy's web UI is functional but more focused on flow editing.
-- Postbin's `--forward` is one flag; mitmproxy's reverse-proxy mode requires more configuration.
-- No CA trust setup needed for plain-HTTP local debugging.
+## Postbin Ultra vs mitmproxy
 
-Where mitmproxy wins:
+mitmproxy is a serious tool — a full HTTPS man-in-the-middle proxy with scripting, content modification, certificate generation. If you need to intercept HTTPS traffic from a system you don't control (a browser, a mobile app), install mitmproxy's CA on the device and you can rewrite anything.
 
-- Real HTTPS interception with a CA you install on the client. Postbin only proxies at the application layer; clients see Postbin's TLS, not the upstream's.
-- Scripting addons, flow editing, replay manipulation, traffic shaping.
-- Decades-old, battle-tested for security work.
+Postbin Ultra is much narrower. You point a client at Postbin's HTTP capture URL, Postbin records the request, optionally forwards it. There's no certificate generation, no in-flight rewriting, no scripting. The trade-off is zero setup — install, launch, paste the URL — and a UI optimised for "I want to read this request" rather than "I want to script the protocol."
 
-## When to reach for what
+If you need full HTTPS interception, use mitmproxy. If you want to inspect requests *that you control the origin of*, Postbin is significantly faster to get running.
 
-- **Capturing webhooks during local development**: Postbin Ultra.
-- **Sharing a public URL with a vendor for testing**: webhook.site, or `ngrok` in front of Postbin.
-- **Inspecting your own browser traffic over HTTPS**: mitmproxy with its CA installed.
-- **Deep flow editing, replay manipulation, scripting**: mitmproxy.
-- **CI fixture capture, AI-assistant traffic feed, replay UI**: Postbin Ultra.
+## When to pick what
+
+| You want to … | Pick |
+| --- | --- |
+| Inspect a webhook from a SaaS sandbox you point at your laptop | Postbin Ultra |
+| Receive a webhook from the public internet | ngrok / Cloudflare Tunnel + Postbin Ultra |
+| Read what your SDK actually puts on the wire | Postbin Ultra |
+| Replay a captured request against staging, repeatedly | Postbin Ultra |
+| MITM a third-party app's HTTPS traffic | mitmproxy |
+| Mock HTTP responses for tests | wiremock / mockito / msw |
+| Run a permanent shared bin for a team | webhook.site or self-hosted RequestBin |
+
+## Next
+
+- [Quick start]({{base}}/quick-start/) — get Postbin running and capture your first request
+- [Forward + replay]({{base}}/forward/) — the proxy + replay workflow that webhook.site and RequestBin can't do
