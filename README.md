@@ -11,7 +11,7 @@ A native HTTP request inspector for macOS, Linux, and Windows. Capture any metho
 
 > **Full documentation: [mpjhorner.github.io/PostbinUltra](https://mpjhorner.github.io/PostbinUltra/)** · [Install](https://mpjhorner.github.io/PostbinUltra/install/) · [Forward + replay](https://mpjhorner.github.io/PostbinUltra/forward/) · [Changelog](https://mpjhorner.github.io/PostbinUltra/changelog/)
 
-![Postbin Ultra desktop app showing a captured Stripe webhook with collapsible JSON tree, headers grid, and the Forwarded tab with attempt history](docs/screenshot.png)
+![Postbin Ultra desktop app — sidebar of captured webhooks on the left, an analytics event body rendered as a syntax-highlighted JSON tree on the right, with the Forwarded tab showing the upstream 404](docs/screenshot.png)
 
 ## Why
 

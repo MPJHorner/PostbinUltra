@@ -26,7 +26,7 @@ layout: home
   </div>
 
   <figure class="hero-figure">
-    <img src="{{base}}/img/screenshot.png" alt="Postbin Ultra desktop app showing a captured Stripe webhook with the JSON body rendered as a collapsible tree, headers grid, and the Forwarded tab with attempt history" width="1600" height="1000" />
+    <img src="{{base}}/img/screenshot.png" alt="Postbin Ultra desktop app — sidebar of captured webhooks on the left, an analytics event body rendered as a syntax-highlighted JSON tree on the right, with the Forwarded tab showing the upstream 404" width="1600" height="1000" />
   </figure>
 </section>
 
