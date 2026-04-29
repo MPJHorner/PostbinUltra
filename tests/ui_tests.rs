@@ -465,6 +465,154 @@ async fn ui_js_skips_shortcuts_when_modifier_held_and_uses_shift_x_for_clear() {
 }
 
 #[tokio::test]
+async fn ui_html_includes_mobile_menu_and_back_button() {
+    let store = RequestStore::new(10);
+    let addr = spawn(store).await;
+    let body = client()
+        .get(format!("http://{addr}/"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+
+    // Hamburger button + the sheet container.
+    assert!(
+        body.contains(r#"id="menu-btn""#),
+        "topbar hamburger menu button missing"
+    );
+    assert!(
+        body.contains(r#"id="mobile-menu""#),
+        "mobile menu sheet missing"
+    );
+    assert!(
+        body.contains(r#"id="mobile-menu-close""#),
+        "mobile menu close button missing"
+    );
+    // Each of the five action items.
+    for id in [
+        "mm-forward",
+        "mm-pause",
+        "mm-theme",
+        "mm-shortcuts",
+        "mm-clear",
+    ] {
+        assert!(
+            body.contains(&format!(r#"id="{id}""#)),
+            "mobile menu item #{id} missing"
+        );
+    }
+    // Mobile detail back button.
+    assert!(
+        body.contains(r#"id="mobile-back""#),
+        "mobile back button missing from detail header"
+    );
+    // Viewport opts in to safe-area handling.
+    assert!(
+        body.contains("viewport-fit=cover"),
+        "viewport meta should include viewport-fit=cover"
+    );
+}
+
+#[tokio::test]
+async fn ui_js_wires_mobile_menu_and_detail_navigation() {
+    let store = RequestStore::new(10);
+    let addr = spawn(store).await;
+    let body = client()
+        .get(format!("http://{addr}/app.js"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+
+    for needle in [
+        "wireMobileMenu",
+        "openMobileMenu",
+        "closeMobileMenu",
+        "refreshMobileMenuState",
+        "openMobileDetail",
+        "closeMobileDetail",
+        "isPhoneViewport",
+        "mobile-menu-open",
+        "mobile-detail-open",
+        "(max-width: 640px)",
+    ] {
+        assert!(
+            body.contains(needle),
+            "app.js must reference `{needle}` to wire the mobile UX"
+        );
+    }
+    // Esc closes the menu before falling through to detail close.
+    assert!(
+        body.contains("closeMobileMenu()") && body.contains("closeMobileDetail()"),
+        "Esc handler must invoke both mobile close paths"
+    );
+    // Each menu item has a click handler.
+    for id in [
+        "#mm-forward",
+        "#mm-pause",
+        "#mm-theme",
+        "#mm-shortcuts",
+        "#mm-clear",
+    ] {
+        assert!(body.contains(id), "app.js should bind a handler to {id}");
+    }
+}
+
+#[tokio::test]
+async fn ui_css_has_phone_breakpoint_and_hides_mobile_chrome_by_default() {
+    let store = RequestStore::new(10);
+    let addr = spawn(store).await;
+    let css = client()
+        .get(format!("http://{addr}/style.css"))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+
+    assert!(
+        css.contains("@media (max-width: 640px)"),
+        "style.css must declare the phone breakpoint at 640px"
+    );
+    assert!(
+        css.contains("@media (max-width: 360px)"),
+        "style.css must declare the narrow-phone breakpoint at 360px"
+    );
+    // Mobile-only chrome must be hidden in the default (desktop) cascade so the
+    // existing two-pane layout stays pixel-identical above 640px.
+    assert!(
+        css.contains(".mobile-back-btn")
+            && css.contains(".menu-btn")
+            && css.contains(".mobile-menu"),
+        "style.css must define rules for .mobile-back-btn, .menu-btn, .mobile-menu"
+    );
+    assert!(
+        css.contains("display: none"),
+        "mobile-only chrome must be hidden by default"
+    );
+    // Master/detail slide-in transform exists.
+    assert!(
+        css.contains("mobile-detail-open") && css.contains("translateX"),
+        "detail-pane should slide on mobile via mobile-detail-open + translateX"
+    );
+    // Menu sheet slides up from the bottom.
+    assert!(
+        css.contains("mobile-menu-open") && css.contains("translateY"),
+        "menu sheet should slide via mobile-menu-open + translateY"
+    );
+    // 16px input prevents iOS zoom-on-focus; verify the breakpoint sets it.
+    assert!(
+        css.contains("font-size: 16px"),
+        "phone breakpoint should bump form inputs to 16px to block iOS auto-zoom"
+    );
+}
+
+#[tokio::test]
 async fn static_asset_unknown_path_404() {
     let store = RequestStore::new(10);
     let addr = spawn(store).await;
