@@ -1,0 +1,71 @@
+name: Auto-tag on main
+
+# Reads the version field in crates/postbin-ultra-desktop/Cargo.toml after
+# every push to main; if no v<version> tag exists yet, creates and pushes one.
+# That triggers release.yml which produces the platform binaries.
+#
+# The release flow remains: bump version + CHANGELOG in a normal commit, push
+# to main, and this workflow takes care of the tag. Skip explicitly with
+# `[skip-tag]` in the commit message.
+#
+# Note on the `if:` expression below — `github.event.head_commit.message` is
+# evaluated by GitHub Actions itself (not interpolated into a `run:` shell),
+# so this is safe from the command-injection class of risks.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: auto-tag
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.head_commit.message, '[skip-tag]') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from Cargo.toml
+        id: version
+        run: |
+          version="$(awk -F'"' '/^version *=/ {print $2; exit}' crates/postbin-ultra-desktop/Cargo.toml)"
+          if [[ -z "$version" ]]; then
+            echo "::error::could not read version from crates/postbin-ultra-desktop/Cargo.toml"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if tag already exists
+        id: check
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "Tag ${TAG} already exists; skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure git identity
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create + push tag
+        if: steps.check.outputs.skip == 'false'
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git tag -a "${TAG}" -m "${TAG}"
+          git push origin "${TAG}"
+          echo "::notice::pushed ${TAG} → release.yml will build artefacts"

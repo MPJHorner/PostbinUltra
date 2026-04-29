@@ -23,6 +23,12 @@ eframe = { version = "0.34", default-features = false, features = [
     "default_fonts",
     "glow",
     "persistence",
+    # Required for Linux. winit links its Wayland / X11 backends only when
+    # one of these features is on; without them the build fails with "the
+    # platform you're compiling for is not supported by winit". macOS and
+    # Windows ignore the features.
+    "wayland",
+    "x11",
 ] }
 egui = "0.34"
 egui_extras = { version = "0.34", features = ["image"] }

@@ -64,6 +64,22 @@ pub enum AppEvent {
     /// stored request so the UI reflects the new outcome.
     ForwardUpdated(Box<CapturedRequest>),
     Cleared,
+    /// A background `check_latest_version` finished — populates the top-bar
+    /// "v… available" toast and the Settings → Advanced status line.
+    UpdateCheckResult(UpdateCheck),
+}
+
+/// Result of a single update check. The underlying `check_latest_version`
+/// folds "no network / rate limited / parse error" into the `UpToDate` arm
+/// for simplicity; if v2.1 splits failure cases out, add a `Failed { msg }`
+/// variant here.
+#[derive(Debug, Clone)]
+pub enum UpdateCheck {
+    /// A strictly-newer version was found. Field is the latest version
+    /// string (without the `v` prefix).
+    Newer(String),
+    /// We're already on the latest version (or the check failed silently).
+    UpToDate,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -132,6 +148,17 @@ pub struct AppState {
     /// `(request_id, forward_index, posted_at)` for the most recent replay
     /// — drives the brief flash highlight on the new row.
     pub forward_flash: Option<(Uuid, usize, Instant)>,
+    /// Last result of an update check (background-on-startup or manual).
+    /// `None` means we haven't checked yet (or `no_update_check` is on);
+    /// `Some(...)` populates the Settings status line and the top-bar toast.
+    pub update_check: Option<UpdateCheck>,
+    /// `true` while a manual "Check for updates" click is in flight, so the
+    /// Settings button can show a "Checking…" state.
+    pub update_checking: bool,
+    /// Posts events back to the UI from the tokio runtime — capture relay
+    /// uses its own clone, this one is held so the manual "Check for updates"
+    /// button (and any future background actions) can fire too.
+    pub event_tx: tokio::sync::mpsc::UnboundedSender<AppEvent>,
 }
 
 impl AppState {
@@ -179,6 +206,10 @@ impl AppState {
             AppEvent::Cleared => {
                 self.requests.clear();
                 self.selected = None;
+            }
+            AppEvent::UpdateCheckResult(result) => {
+                self.update_checking = false;
+                self.update_check = Some(result);
             }
         }
     }
@@ -336,6 +367,7 @@ mod tests {
                 .unwrap(),
         );
         let settings = Settings::default();
+        let (event_tx, _event_rx) = tokio::sync::mpsc::unbounded_channel::<AppEvent>();
         AppState {
             supervisor: sup,
             requests: vec![],
@@ -355,6 +387,9 @@ mod tests {
             status_message: None,
             forward_selection: HashMap::new(),
             forward_flash: None,
+            update_check: None,
+            update_checking: false,
+            event_tx,
         }
     }
 

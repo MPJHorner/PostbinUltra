@@ -20,7 +20,7 @@ use tokio::sync::broadcast;
 use crate::format::{format_body, FormattedBody};
 use crate::highlight::{self, Highlighter};
 use crate::state::{
-    AppEvent, AppState, BodyFormat, DetailTab, SettingsTab, METHOD_CHIPS, OTHER_BUCKET,
+    AppEvent, AppState, BodyFormat, DetailTab, SettingsTab, UpdateCheck, METHOD_CHIPS, OTHER_BUCKET,
 };
 use crate::theme;
 use crate::widgets;
@@ -74,9 +74,15 @@ impl DesktopApp {
         let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel::<AppEvent>();
         let ctx = cc.egui_ctx.clone();
         let store_for_relay = store.clone();
+        // Two clones: one for the relay (consumed inside the relay loop), one
+        // kept on AppState so manual actions like "Check for updates" can
+        // post events back to the UI from the runtime.
+        let event_tx_relay = event_tx.clone();
+        let event_tx_state = event_tx.clone();
+        let event_tx_startup = event_tx.clone();
         runtime.spawn(spawn_relay(
             store_for_relay.subscribe(),
-            event_tx,
+            event_tx_relay,
             ctx.clone(),
         ));
 
@@ -102,7 +108,18 @@ impl DesktopApp {
             status_message: None,
             forward_selection: std::collections::HashMap::new(),
             forward_flash: None,
+            update_check: None,
+            update_checking: false,
+            event_tx: event_tx_state,
         };
+
+        // Drop the now-unused original sender so only the named clones live.
+        drop(event_tx);
+
+        // Spawn a one-shot startup update check (skipped if disabled).
+        if !state.settings.no_update_check {
+            spawn_update_check(&state.runtime, &event_tx_startup, &ctx);
+        }
 
         Ok(Self { state, event_rx })
     }
@@ -137,6 +154,26 @@ async fn spawn_relay(
             Err(broadcast::error::RecvError::Closed) => break,
         }
     }
+}
+
+/// Run a single update check on the tokio runtime; post the result back to
+/// the UI as an `AppEvent::UpdateCheckResult`. Best-effort: any failure
+/// resolves into [`UpdateCheck::Failed`] and surfaces in Settings → Advanced.
+fn spawn_update_check(
+    runtime: &tokio::runtime::Handle,
+    tx: &tokio::sync::mpsc::UnboundedSender<AppEvent>,
+    ctx: &egui::Context,
+) {
+    let tx = tx.clone();
+    let ctx = ctx.clone();
+    runtime.spawn(async move {
+        let result = match postbin_ultra::update::check_latest_version().await {
+            Some(v) => UpdateCheck::Newer(v),
+            None => UpdateCheck::UpToDate,
+        };
+        let _ = tx.send(AppEvent::UpdateCheckResult(result));
+        ctx.request_repaint();
+    });
 }
 
 fn forward_from_settings(f: &ForwardSettings) -> anyhow::Result<Option<ForwardConfig>> {
@@ -330,6 +367,38 @@ impl DesktopApp {
 
                         ui.add_space(8.0);
                         widgets::status_dot(ui, true);
+
+                        // Update toast — only when a strictly-newer version is
+                        // known. Single-button accent pill: click → opens the
+                        // release page in the default browser.
+                        if let Some(UpdateCheck::Newer(v)) =
+                            self.state.update_check.as_ref().cloned().as_ref()
+                        {
+                            ui.add_space(8.0);
+                            ui.push_id("topbar-update-toast", |ui| {
+                                let frame = egui::Frame::new()
+                                    .fill(theme::ACCENT.linear_multiply(0.18))
+                                    .stroke(Stroke::new(1.0, theme::ACCENT))
+                                    .corner_radius(egui::CornerRadius::same(6))
+                                    .inner_margin(egui::Margin::symmetric(10, 4));
+                                let resp = frame
+                                    .show(ui, |ui| {
+                                        ui.label(
+                                            RichText::new(format!("v{} available", v))
+                                                .small()
+                                                .strong()
+                                                .color(theme::ACCENT),
+                                        );
+                                    })
+                                    .response
+                                    .interact(egui::Sense::click())
+                                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                    .on_hover_text("Open the release page in your browser");
+                                if resp.clicked() {
+                                    let _ = open_release_page();
+                                }
+                            });
+                        }
                     });
                 });
             });
@@ -1210,6 +1279,55 @@ impl DesktopApp {
             "Skip update check on startup",
             &mut self.state.pending_settings.no_update_check,
         ));
+
+        ui.add_space(10.0);
+
+        // ── Update check ────────────────────────────────────────────────
+        let current = postbin_ultra::update::current_version();
+        let status_line = match (&self.state.update_check, self.state.update_checking) {
+            (_, true) => "Checking…".to_string(),
+            (Some(UpdateCheck::Newer(v)), _) => format!("v{v} available — current v{current}"),
+            (Some(UpdateCheck::UpToDate), _) => format!("Up to date (v{current})"),
+            (None, _) => format!("Current v{current}"),
+        };
+        let status_color = match (&self.state.update_check, self.state.update_checking) {
+            (Some(UpdateCheck::Newer(_)), false) => theme::ACCENT,
+            _ => theme::muted_text_color(ui.ctx()),
+        };
+        let frame = egui::Frame::new()
+            .fill(theme::elev2_bg(ui.ctx()))
+            .stroke(Stroke::new(1.0, theme::border_color(ui.ctx())))
+            .corner_radius(egui::CornerRadius::same(6))
+            .inner_margin(egui::Margin::symmetric(12, 10));
+        frame.show(ui, |ui| {
+            ui.set_min_width(ui.available_width());
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(status_line).strong().color(status_color));
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if matches!(self.state.update_check, Some(UpdateCheck::Newer(_))) {
+                        if ui
+                            .small_button("Open release page")
+                            .on_hover_text("github.com/MPJHorner/PostbinUltra/releases/latest")
+                            .clicked()
+                        {
+                            let _ = open_release_page();
+                        }
+                        ui.add_space(6.0);
+                    }
+                    if ui
+                        .add_enabled(
+                            !self.state.update_checking,
+                            egui::Button::new("Check for updates"),
+                        )
+                        .clicked()
+                    {
+                        self.state.update_checking = true;
+                        self.state.update_check = None;
+                        self.spawn_update_check_now();
+                    }
+                });
+            });
+        });
     }
 
     // ────────────────────────── Hotkeys ──────────────────────────
@@ -1294,6 +1412,23 @@ impl DesktopApp {
 
         self.state.settings = new_settings;
         Ok(())
+    }
+
+    /// Manual update check — fired by the "Check for updates" button in
+    /// Settings → Advanced. Goes through the same code path as the startup
+    /// check, just with the live sender held on AppState.
+    fn spawn_update_check_now(&self) {
+        let ctx = self.state.supervisor.config().forward.clone();
+        let _ = ctx; // unused; here so future versions can grab any handle they need
+        let runtime = self.state.runtime.clone();
+        let tx = self.state.event_tx.clone();
+        runtime.spawn(async move {
+            let result = match postbin_ultra::update::check_latest_version().await {
+                Some(v) => UpdateCheck::Newer(v),
+                None => UpdateCheck::UpToDate,
+            };
+            let _ = tx.send(AppEvent::UpdateCheckResult(result));
+        });
     }
 
     fn open_settings(&mut self) {
@@ -1579,6 +1714,32 @@ fn settings_tab_button(ui: &mut egui::Ui, label: &str, selected: bool) -> egui::
     }
     resp.interact(egui::Sense::click())
         .on_hover_cursor(egui::CursorIcon::PointingHand)
+}
+
+/// Open the GitHub releases/latest page in the user's default browser. Tiny
+/// cross-platform shell-out — avoids pulling in the `open` crate just for
+/// this single call.
+fn open_release_page() -> std::io::Result<()> {
+    let url = "https://github.com/MPJHorner/PostbinUltra/releases/latest";
+    #[cfg(target_os = "macos")]
+    let cmd = ("open", url);
+    #[cfg(target_os = "linux")]
+    let cmd = ("xdg-open", url);
+    #[cfg(target_os = "windows")]
+    let cmd = ("cmd", url);
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    let cmd: (&str, &str) = ("true", url);
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new(cmd.0)
+            .args(["/C", "start", "", cmd.1])
+            .spawn()?;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::process::Command::new(cmd.0).arg(cmd.1).spawn()?;
+    }
+    Ok(())
 }
 
 /// Tab-strip button with an underline accent when selected.
