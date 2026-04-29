@@ -63,18 +63,111 @@
 
     $('#mobile-back')?.addEventListener('click', closeMobileDetail);
 
+    wireMobileMenu();
+
     // If the viewport widens past the phone breakpoint, ensure the detail-pane
     // doesn't stay covering the list (it should only ever cover on phone).
     if (window.matchMedia) {
       const mq = window.matchMedia('(max-width: 640px)');
       const onChange = () => {
-        if (!mq.matches) document.body.classList.remove('mobile-detail-open');
+        if (!mq.matches) {
+          document.body.classList.remove('mobile-detail-open');
+          closeMobileMenu();
+        }
       };
       if (mq.addEventListener) mq.addEventListener('change', onChange);
       else if (mq.addListener) mq.addListener(onChange);
     }
 
     document.addEventListener('keydown', onKeydown);
+  }
+
+  function wireMobileMenu() {
+    const btn = $('#menu-btn');
+    const menu = $('#mobile-menu');
+    if (!btn || !menu) return;
+    btn.addEventListener('click', openMobileMenu);
+    $('#mobile-menu-close')?.addEventListener('click', closeMobileMenu);
+    // Tap the dim backdrop (but not the sheet itself) to dismiss.
+    menu.addEventListener('click', (e) => {
+      if (e.target === menu) closeMobileMenu();
+    });
+    // Each menu item runs its action and closes the sheet (except shortcuts,
+    // which opens a different dialog — closing the sheet keeps the dialog clean).
+    $('#mm-forward')?.addEventListener('click', () => {
+      closeMobileMenu();
+      openForwardDialog();
+    });
+    $('#mm-pause')?.addEventListener('click', () => {
+      togglePause();
+      refreshMobileMenuState();
+    });
+    $('#mm-theme')?.addEventListener('click', () => {
+      toggleTheme();
+      refreshMobileMenuState();
+    });
+    $('#mm-shortcuts')?.addEventListener('click', () => {
+      closeMobileMenu();
+      $('#help-dialog').showModal();
+    });
+    $('#mm-clear')?.addEventListener('click', () => {
+      closeMobileMenu();
+      confirmClear();
+    });
+  }
+
+  function openMobileMenu() {
+    const menu = $('#mobile-menu');
+    const btn = $('#menu-btn');
+    if (!menu) return;
+    menu.hidden = false;
+    refreshMobileMenuState();
+    // Force layout flush so the transition runs.
+    void menu.offsetWidth;
+    document.body.classList.add('mobile-menu-open');
+    btn?.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeMobileMenu() {
+    const menu = $('#mobile-menu');
+    const btn = $('#menu-btn');
+    document.body.classList.remove('mobile-menu-open');
+    btn?.setAttribute('aria-expanded', 'false');
+    if (!menu) return;
+    // Hide after the transition so screen readers don't see a stale region.
+    setTimeout(() => {
+      if (!document.body.classList.contains('mobile-menu-open')) menu.hidden = true;
+    }, 250);
+  }
+
+  function refreshMobileMenuState() {
+    // Forward state mirrors the chip.
+    const fwd = $('#mm-forward');
+    const fwdState = $('#mm-forward-state');
+    if (fwd && fwdState) {
+      const f = state.forward;
+      if (f && f.enabled) {
+        fwd.classList.add('mm-on');
+        fwdState.textContent = f.url || 'on';
+      } else {
+        fwd.classList.remove('mm-on');
+        fwdState.textContent = 'off';
+      }
+    }
+    // Pause state.
+    const pauseLabel = $('#mm-pause-label');
+    const pauseState = $('#mm-pause-state');
+    const pauseItem = $('#mm-pause');
+    if (pauseLabel && pauseState && pauseItem) {
+      pauseLabel.textContent = state.paused ? 'Resume' : 'Pause';
+      pauseState.textContent = state.paused ? 'paused' : 'streaming';
+      pauseItem.classList.toggle('mm-on', state.paused);
+    }
+    // Theme state.
+    const themeState = $('#mm-theme-state');
+    if (themeState) {
+      themeState.textContent = (document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
+    }
   }
 
   function isPhoneViewport() {
@@ -770,6 +863,7 @@
       }
       case 'Escape':
         if ($('#help-dialog').open) $('#help-dialog').close();
+        else if (document.body.classList.contains('mobile-menu-open')) closeMobileMenu();
         else if (document.body.classList.contains('mobile-detail-open')) closeMobileDetail();
         break;
     }

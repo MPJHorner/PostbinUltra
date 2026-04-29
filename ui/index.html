@@ -62,8 +62,66 @@
       </button>
     </div>
 
+    <button class="menu-btn" id="menu-btn" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-menu">
+      <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M2 3h12v2H2V3Zm0 4h12v2H2V7Zm0 4h12v2H2v-2Z"/></svg>
+    </button>
+
     <div class="status-dot" id="status" title="Disconnected" aria-label="Connection status"></div>
   </header>
+
+  <div class="mobile-menu" id="mobile-menu" role="dialog" aria-modal="true" aria-label="Menu" hidden>
+    <div class="mobile-menu-sheet">
+      <header class="mobile-menu-head">
+        <h3>Menu</h3>
+        <button class="mobile-menu-close" id="mobile-menu-close" type="button" aria-label="Close menu">
+          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M3.5 2.1 8 6.6l4.5-4.5 1.4 1.4L9.4 8l4.5 4.5-1.4 1.4L8 9.4l-4.5 4.5-1.4-1.4L6.6 8 2.1 3.5z"/></svg>
+        </button>
+      </header>
+      <ul class="mobile-menu-list">
+        <li>
+          <button class="mobile-menu-item" id="mm-forward" type="button">
+            <span class="mm-icon" aria-hidden="true">→</span>
+            <span class="mm-label">Forward</span>
+            <span class="mm-state" id="mm-forward-state">off</span>
+          </button>
+        </li>
+        <li>
+          <button class="mobile-menu-item" id="mm-pause" type="button">
+            <span class="mm-icon" aria-hidden="true">
+              <svg viewBox="0 0 16 16" width="14" height="14"><path fill="currentColor" d="M4 3h3v10H4zM9 3h3v10H9z"/></svg>
+            </span>
+            <span class="mm-label" id="mm-pause-label">Pause</span>
+            <span class="mm-state" id="mm-pause-state">streaming</span>
+          </button>
+        </li>
+        <li>
+          <button class="mobile-menu-item" id="mm-theme" type="button">
+            <span class="mm-icon" aria-hidden="true">
+              <svg viewBox="0 0 16 16" width="14" height="14"><path fill="currentColor" d="M8 1.5a6.5 6.5 0 1 0 6.4 5.4 5.5 5.5 0 0 1-6.9-6.9A6.6 6.6 0 0 0 8 1.5Z"/></svg>
+            </span>
+            <span class="mm-label">Toggle theme</span>
+            <span class="mm-state" id="mm-theme-state">dark</span>
+          </button>
+        </li>
+        <li>
+          <button class="mobile-menu-item" id="mm-shortcuts" type="button">
+            <span class="mm-icon" aria-hidden="true">
+              <svg viewBox="0 0 16 16" width="14" height="14"><path fill="currentColor" d="M2 3h12v2H2V3Zm0 4h12v2H2V7Zm0 4h8v2H2v-2Z"/></svg>
+            </span>
+            <span class="mm-label">Keyboard shortcuts</span>
+          </button>
+        </li>
+        <li>
+          <button class="mobile-menu-item mobile-menu-danger" id="mm-clear" type="button">
+            <span class="mm-icon" aria-hidden="true">
+              <svg viewBox="0 0 16 16" width="14" height="14"><path fill="currentColor" d="M6 2h4l1 1h3v2H2V3h3l1-1Zm-3 4h10l-1 8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2L3 6Z"/></svg>
+            </span>
+            <span class="mm-label">Clear all captures</span>
+          </button>
+        </li>
+      </ul>
+    </div>
+  </div>
 
   <main class="layout">
     <aside class="list-pane" id="list-pane">

@@ -2,6 +2,11 @@
 
 All notable changes are recorded here. Postbin Ultra follows [Semantic Versioning](https://semver.org/).
 
+## [1.0.1] - 2026-04-29
+
+### Changed
+- The mobile top bar now collapses to a single menu button (`≡`) that opens a full-screen sheet containing Forward, Pause / Resume, Toggle theme, Keyboard shortcuts, and Clear all captures. Each item shows the live state (proxy URL, paused / streaming, dark / light) so a glance is enough. Tap the close button or the dim backdrop to dismiss. Desktop is unchanged.
+
 ## [1.0.0] - 2026-04-28
 
 ### Added
