@@ -2,6 +2,11 @@
 
 All notable changes are recorded here. Postbin Ultra follows [Semantic Versioning](https://semver.org/).
 
+## [1.0.2] - 2026-04-29
+
+### Changed
+- Locked in the mobile UX with integration tests covering the hamburger menu, the master/detail navigation, the phone-only CSS breakpoint, and the desktop guard rails. The behavior is unchanged from 1.0.1; this release only ensures it can't silently regress.
+
 ## [1.0.1] - 2026-04-29
 
 ### Changed
