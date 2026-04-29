@@ -126,13 +126,21 @@ layout: home
   </div>
 </section>
 
-<section class="section">
-  <div class="section-eyebrow">Get started</div>
-  <h2>Install in 30 seconds.</h2>
+<section class="section install-cta-section">
+  <div class="section-eyebrow">Get started in 30 seconds</div>
+  <h2>One line. macOS + Linux.</h2>
+  <p class="section-lede">The script detects your OS and arch, grabs the matching release artefact, and drops Postbin Ultra in the right place. No accounts. No telemetry. No tunnels.</p>
 
-<div class="code-block"><span class="code-lang">sh</span><button class="copy-btn" type="button" aria-label="Copy code">copy</button><pre><code class="language-sh">curl -sSL https://raw.githubusercontent.com/MPJHorner/PostbinUltra/main/scripts/install.sh | bash</code></pre></div>
+  <div class="install-hero">
+    <div class="install-hero-cmd">
+      <span class="prompt">$</span>
+      <code>curl -sSL https://raw.githubusercontent.com/MPJHorner/PostbinUltra/main/scripts/install.sh | bash</code>
+      <button class="copy-btn install-copy" type="button" data-clipboard="curl -sSL https://raw.githubusercontent.com/MPJHorner/PostbinUltra/main/scripts/install.sh | bash" aria-label="Copy install command">copy</button>
+    </div>
+    <p class="install-hero-note">After install, launch from Spotlight (macOS) or run <code>PostbinUltra</code> (Linux). Done.</p>
+  </div>
 
-  <p>Or grab the platform package manually from the <a href="{{base}}/install/">install page</a> — <code>.dmg</code> for macOS, <code>.tar.gz</code> for Linux, <code>.zip</code> for Windows.</p>
+  <p class="install-alts">Prefer to grab the package by hand? <a href="{{base}}/install/"><code>.dmg</code> for macOS</a>, <a href="{{base}}/install/"><code>.tar.gz</code> for Linux</a>, <a href="{{base}}/install/"><code>.zip</code> for Windows</a>, or <code>cargo install --git github.com/MPJHorner/PostbinUltra postbin-ultra-desktop</code>.</p>
 
   <div class="cta-card">
     <div>

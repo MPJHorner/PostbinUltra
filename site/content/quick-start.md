@@ -8,6 +8,8 @@ slug: "quick-start"
 
 Two minutes from install to "I just inspected my first webhook."
 
+![Postbin Ultra in light mode — captured SendGrid webhook with a JSON tree of three event entries (delivered, open, bounce)]({{base}}/img/screenshot-light.png)
+
 ## 1. Launch the app
 
 After [installing]({{base}}/install/), open Postbin Ultra. The top bar shows the capture URL — click the pill to copy it.

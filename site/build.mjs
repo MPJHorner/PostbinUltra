@@ -376,10 +376,15 @@ Sitemap: ${SITE_URL}${BASE}/sitemap.xml
 async function copyStatic() {
   const staticDir = join(SITE, 'static');
   if (existsSync(staticDir)) await copyDir(staticDir, DIST);
-  const screenshot = join(ROOT, 'docs/screenshot.png');
-  if (existsSync(screenshot)) {
-    await mkdir(join(DIST, 'img'), { recursive: true });
-    await copyFile(screenshot, join(DIST, 'img/screenshot.png'));
+  // Screenshots live under docs/ so the README can embed them too. We copy
+  // each one that exists into dist/img/ so the site can reference them with
+  // {{base}}/img/<name>.png from any content page.
+  await mkdir(join(DIST, 'img'), { recursive: true });
+  for (const name of ['screenshot.png', 'screenshot-forward.png', 'screenshot-light.png']) {
+    const src = join(ROOT, 'docs', name);
+    if (existsSync(src)) {
+      await copyFile(src, join(DIST, 'img', name));
+    }
   }
 }
 

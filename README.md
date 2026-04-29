@@ -19,44 +19,15 @@ Most request bins are SaaS tools. You sign up, get a random URL, copy it into th
 
 ## Install
 
-### One-liner (macOS + Linux)
+> ### 🚀 macOS + Linux — one line
+>
+> ```sh
+> curl -sSL https://raw.githubusercontent.com/MPJHorner/PostbinUltra/main/scripts/install.sh | bash
+> ```
+>
+> Detects your OS + arch, grabs the right release artefact, drops `PostbinUltra` in `/Applications` (macOS) or `~/.local/bin/` (Linux), tells you how to launch it. That's it.
 
-```sh
-curl -sSL https://raw.githubusercontent.com/MPJHorner/PostbinUltra/main/scripts/install.sh | bash
-```
-
-### macOS — `.dmg`
-
-Download the matching `.dmg` from the [latest release](https://github.com/MPJHorner/PostbinUltra/releases/latest):
-
-- Apple Silicon — `PostbinUltra-<version>-aarch64-apple-darwin.dmg`
-- Intel — `PostbinUltra-<version>-x86_64-apple-darwin.dmg`
-
-Drag `PostbinUltra.app` to `/Applications`, double-click. The capture server binds `127.0.0.1:9000` automatically.
-
-### Linux — `.tar.gz`
-
-```sh
-curl -L -o pbu.tgz https://github.com/MPJHorner/PostbinUltra/releases/latest/download/PostbinUltra-2.0.0-x86_64-unknown-linux-gnu.tar.gz
-tar -xzf pbu.tgz
-./PostbinUltra
-```
-
-ARM64 build available too — swap `x86_64` for `aarch64`.
-
-### Windows — `.zip`
-
-Download `PostbinUltra-<version>-x86_64-pc-windows-msvc.zip`, unzip, run `PostbinUltra.exe`.
-
-### From source
-
-```sh
-cargo install --git https://github.com/MPJHorner/PostbinUltra postbin-ultra-desktop
-```
-
-Requires Rust 1.85+. The binary lands at `~/.cargo/bin/PostbinUltra`.
-
-Full install instructions, troubleshooting, and checksum verification on the [install page](https://mpjhorner.github.io/PostbinUltra/install/).
+Other platforms / manual install / build from source are listed on the [install page](https://mpjhorner.github.io/PostbinUltra/install/) — `.dmg` for macOS, `.tar.gz` for Linux, `.zip` for Windows, `cargo install --git …` for the Rust toolchain users.
 
 ## Quick start
 

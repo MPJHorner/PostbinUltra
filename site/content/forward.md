@@ -8,6 +8,8 @@ slug: "forward"
 
 Forward turns Postbin Ultra into a transparent man-in-the-middle: every captured request is also sent to whatever upstream URL you configure, and the upstream's response is shown alongside the request. Replay re-fires any captured request through the current forward target so you can compare outcomes across deploys, debug intermittent failures, or build up a history of attempts on a single payload.
 
+![Postbin Ultra Forwarded tab — five attempt rows showing the same PUT /assets/photo.jpg replayed against localhost:8000, all returning HTTP 404, with the upstream response headers and HTML body rendered below]({{base}}/img/screenshot-forward.png)
+
 ## Setup
 
 Click the **Forward** pill in the top bar (or **,** to open Settings, then the **Forward** tab):

@@ -4,9 +4,17 @@
   document.addEventListener('click', function (e) {
     var btn = e.target.closest('.copy-btn');
     if (!btn) return;
-    var pre = btn.parentElement.querySelector('pre code');
-    if (!pre) return;
-    var text = pre.innerText;
+    var text;
+    // Buttons can either declare the exact text via data-clipboard (for
+    // single-line CTAs like the install one-liner), or live next to a
+    // `<pre><code>` block (the default for embedded code blocks).
+    if (btn.dataset && btn.dataset.clipboard) {
+      text = btn.dataset.clipboard;
+    } else {
+      var pre = btn.parentElement.querySelector('pre code');
+      if (!pre) return;
+      text = pre.innerText;
+    }
     var done = function () {
       var prev = btn.textContent;
       btn.textContent = 'copied';
