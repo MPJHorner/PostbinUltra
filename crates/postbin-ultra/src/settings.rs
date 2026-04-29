@@ -286,8 +286,17 @@ mod tests {
     fn default_path_resolves_under_config_dir() {
         let path = Settings::default_path();
         if let Some(p) = path {
-            let s = p.to_string_lossy();
-            assert!(s.ends_with("PostbinUltra/settings.json"));
+            // Compare path components rather than the string form so the test
+            // passes on Windows (backslash separators) and on Unix.
+            let mut iter = p.components().rev();
+            assert_eq!(
+                iter.next().map(|c| c.as_os_str().to_owned()),
+                Some(std::ffi::OsString::from("settings.json"))
+            );
+            assert_eq!(
+                iter.next().map(|c| c.as_os_str().to_owned()),
+                Some(std::ffi::OsString::from("PostbinUltra"))
+            );
         }
     }
 }
